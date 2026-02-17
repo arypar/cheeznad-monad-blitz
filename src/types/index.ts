@@ -19,7 +19,9 @@ export interface ZoneActivity {
   odds: number;
   heatLevel: HeatLevel;
   lastTxTimestamp: number;
-  recentTxCount: number; // txns in last 10s for heat calculation
+  recentTxCount: number;
+  multiplier: number;
+  weightedScore: number;
 }
 
 export interface Transaction {

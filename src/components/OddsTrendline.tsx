@@ -26,21 +26,21 @@ export default function ActivityTrendline({
   const [isSpiking, setIsSpiking] = useState(false);
   const prevCountRef = useRef(0);
 
-  const currentCount = data.length > 0 ? safeNum(data[data.length - 1].count) : 0;
+  const currentChance = data.length > 0 ? safeNum(data[data.length - 1].count) : 0;
 
   useEffect(() => {
-    const delta = currentCount - prevCountRef.current;
-    prevCountRef.current = currentCount;
-    if (delta >= 2) {
+    const delta = Math.abs(currentChance - prevCountRef.current);
+    prevCountRef.current = currentChance;
+    if (delta >= 5) {
       setIsSpiking(true);
       const t = setTimeout(() => setIsSpiking(false), 500);
       return () => clearTimeout(t);
     }
-  }, [currentCount]);
+  }, [currentChance]);
 
-  const { linePath, viewBox, isUp } = useMemo(() => {
+  const { linePath, areaPath, viewBox } = useMemo(() => {
     if (data.length < 2) {
-      return { linePath: "", viewBox: `0 0 600 ${height}`, isUp: false };
+      return { linePath: "", areaPath: "", viewBox: `0 0 600 ${height}` };
     }
 
     const width = 600;
@@ -50,8 +50,9 @@ export default function ActivityTrendline({
     const innerW = width - padX * 2;
 
     const counts = data.map((d) => safeNum(d.count));
-    const maxCount = Math.max(...counts);
-    const minCount = Math.min(...counts);
+
+    const maxCount = Math.max(...counts, 20);
+    const minCount = 0;
     const range = Math.max(maxCount - minCount, 1);
 
     const points = counts.map((c, i) => {
@@ -60,39 +61,35 @@ export default function ActivityTrendline({
       return { x: safeNum(x, padX), y: safeNum(y, padY) };
     });
 
-    let d = `M ${points[0].x} ${points[0].y}`;
+    let lineD = `M ${points[0].x} ${points[0].y}`;
     for (let i = 1; i < points.length; i++) {
       const prev = points[i - 1];
       const curr = points[i];
       const cpx = (prev.x + curr.x) / 2;
-      d += ` C ${cpx} ${prev.y}, ${cpx} ${curr.y}, ${curr.x} ${curr.y}`;
+      lineD += ` C ${cpx} ${prev.y}, ${cpx} ${curr.y}, ${curr.x} ${curr.y}`;
     }
 
-    const first = counts[0];
-    const last = counts[counts.length - 1];
-    const up = last > first;
+    const lastPt = points[points.length - 1];
+    const areaD = `${lineD} L ${lastPt.x} ${height} L ${points[0].x} ${height} Z`;
 
     return {
-      linePath: d,
+      linePath: lineD,
+      areaPath: areaD,
       viewBox: `0 0 ${width} ${height}`,
-      isUp: up,
     };
   }, [data, height]);
 
-  const lineColor = isUp ? "#2D9B2D" : "#E63946";
-
   return (
     <div className="relative w-full h-full overflow-hidden">
-      {/* Txn count badge */}
-      {currentCount > 0 && (
+      {currentChance > 0 && (
         <div
           className="absolute top-1.5 right-2.5 font-numbers text-[11px] font-bold z-10 pointer-events-none"
           style={{
-            color: lineColor,
-            opacity: 0.85,
+            color,
+            opacity: 0.9,
           }}
         >
-          {currentCount} txns
+          {currentChance.toFixed(1)}%
         </div>
       )}
 
@@ -101,19 +98,27 @@ export default function ActivityTrendline({
         preserveAspectRatio="none"
         className="w-full h-full"
       >
+        {areaPath && (
+          <path
+            d={areaPath}
+            fill={`rgba(${colorRgb}, ${isSelected ? 0.08 : 0.04})`}
+          />
+        )}
         {linePath && (
           <path
             d={linePath}
             fill="none"
-            stroke={lineColor}
+            stroke={color}
             strokeWidth={isSelected ? "2.5" : "2"}
             strokeLinecap="round"
             strokeLinejoin="round"
+            style={{
+              opacity: isSpiking ? 1 : 0.8,
+            }}
           />
         )}
       </svg>
 
-      {/* Waiting state */}
       {data.length < 2 && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-xs font-numbers">
           waiting for data...

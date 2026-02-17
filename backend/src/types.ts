@@ -43,3 +43,27 @@ export interface BlockStats {
   unclassifiedCalls: number;
   byZone: Record<ZoneId, number>;
 }
+
+export interface ZoneScore {
+  txCount: number;
+  multiplier: number;
+  weightedScore: number;
+}
+
+export interface RoundStartMessage {
+  type: "round_start";
+  data: {
+    roundNumber: number;
+    multipliers: Record<ZoneId, number>;
+    endsAt: number;
+  };
+}
+
+export interface RoundEndMessage {
+  type: "round_end";
+  data: {
+    roundNumber: number;
+    winner: ZoneId;
+    scores: Record<ZoneId, ZoneScore>;
+  };
+}

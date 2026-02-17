@@ -1,8 +1,10 @@
 import { config } from "./config.js";
 import { createMonadClient, watchNewBlocks } from "./monitor.js";
 import { classifyBlock } from "./classifier.js";
-import { startServer, broadcast, getClientCount } from "./server.js";
+import { startServer, broadcast, broadcastRoundStart, broadcastRoundEnd, getClientCount } from "./server.js";
 import { initRegistry, getRegistrySize } from "./registry.js";
+import { initSupabase } from "./supabase.js";
+import { setRoundCallbacks, startRound, accumulateTx, stopRounds } from "./rounds.js";
 import type { ZoneId } from "./types.js";
 
 const ZONE_LABELS: Record<ZoneId, string> = {
@@ -65,10 +67,19 @@ async function main() {
 
   await initRegistry();
 
+  initSupabase();
+  console.log(`  ${DIM}Supabase${RESET}  connected`);
+
+  setRoundCallbacks(
+    (data) => broadcastRoundStart(data),
+    (data) => broadcastRoundEnd(data),
+  );
+
   console.log("");
   console.log(`  ${DIM}RPC${RESET}       ${config.monadRpcWs}`);
   console.log(`  ${DIM}WS Port${RESET}   ${config.wsPort}`);
   console.log(`  ${DIM}Registry${RESET}  ${getRegistrySize()} addresses across 5 zones`);
+  console.log(`  ${DIM}Round${RESET}     ${config.roundDurationMs / 1000}s per round`);
   console.log(`  ${DIM}Zones${RESET}     ${ALL_ZONES.map(z => ZONE_COLORS[z] + ZONE_LABELS[z] + RESET).join(DIM + " · " + RESET)}`);
   console.log("");
   console.log(SEP);
@@ -77,6 +88,8 @@ async function main() {
 
   const wss = startServer();
   const client = createMonadClient();
+
+  await startRound();
 
   let blocksProcessed = 0;
   let totalClassified = 0;
@@ -91,6 +104,10 @@ async function main() {
     totalTxns += stats.totalTxns;
     totalTransfers += stats.nativeTransfers;
     totalOther += stats.unclassifiedCalls + stats.contractCreations;
+
+    for (const tx of transactions) {
+      accumulateTx(tx.zoneId, parseFloat(tx.value) || 0);
+    }
 
     const clients = getClientCount();
 
@@ -132,6 +149,7 @@ async function main() {
   function shutdown() {
     console.log("");
     console.log(SEP);
+    stopRounds();
     const avgRate = totalTxns > 0 ? ((totalClassified / totalTxns) * 100).toFixed(1) : "0";
     console.log(
       `  ${BOLD}Session:${RESET} ${blocksProcessed} blocks | ` +

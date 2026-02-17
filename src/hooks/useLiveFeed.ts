@@ -21,10 +21,32 @@ interface ClassifiedTxMessage {
   };
 }
 
+interface RoundStartMessage {
+  type: "round_start";
+  data: {
+    roundNumber: number;
+    multipliers: Record<ZoneId, number>;
+    endsAt: number;
+  };
+}
+
+interface RoundEndMessage {
+  type: "round_end";
+  data: {
+    roundNumber: number;
+    winner: ZoneId;
+    scores: Record<ZoneId, { txCount: number; multiplier: number; weightedScore: number }>;
+  };
+}
+
+type WsMessage = ClassifiedTxMessage | RoundStartMessage | RoundEndMessage | { type: string };
+
 export function useLiveFeed() {
   const addTransaction = useGameStore((s) => s.addTransaction);
   const decayRecentCounts = useGameStore((s) => s.decayRecentCounts);
   const tickChart = useGameStore((s) => s.tickChart);
+  const handleRoundStart = useGameStore((s) => s.handleRoundStart);
+  const handleRoundEnd = useGameStore((s) => s.handleRoundEnd);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeout = useRef<ReturnType<typeof setTimeout>>();
 
@@ -43,22 +65,29 @@ export function useLiveFeed() {
 
       ws.onmessage = (event) => {
         try {
-          const msg: ClassifiedTxMessage = JSON.parse(event.data);
-          if (msg.type !== "transaction") return;
+          const msg: WsMessage = JSON.parse(event.data);
 
-          const d = msg.data;
-          const amount = parseFloat(d.value) || 0;
+          if (msg.type === "transaction") {
+            const d = (msg as ClassifiedTxMessage).data;
+            const amount = parseFloat(d.value) || 0;
 
-          const tx: Transaction = {
-            id: d.id,
-            zoneId: d.zoneId,
-            address: d.from,
-            amount: Math.round(amount * 1000) / 1000,
-            timestamp: Date.now(),
-            type: "bet",
-          };
+            const tx: Transaction = {
+              id: d.id,
+              zoneId: d.zoneId,
+              address: d.from,
+              amount: Math.round(amount * 1000) / 1000,
+              timestamp: Date.now(),
+              type: "bet",
+            };
 
-          addTransaction(tx);
+            addTransaction(tx);
+          } else if (msg.type === "round_start") {
+            const d = (msg as RoundStartMessage).data;
+            handleRoundStart(d);
+          } else if (msg.type === "round_end") {
+            const d = (msg as RoundEndMessage).data;
+            handleRoundEnd(d);
+          }
         } catch {
           // ignore malformed messages
         }
@@ -92,5 +121,5 @@ export function useLiveFeed() {
       clearInterval(decayInterval);
       wsRef.current?.close();
     };
-  }, [addTransaction, decayRecentCounts, tickChart]);
+  }, [addTransaction, decayRecentCounts, tickChart, handleRoundStart, handleRoundEnd]);
 }

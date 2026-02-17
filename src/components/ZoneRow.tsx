@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Zone, ZoneActivity } from "@/types";
 import { ActivityPoint, useGameStore } from "@/store/useGameStore";
-import { formatMON } from "@/lib/utils";
+import { ZONE_IDS } from "@/lib/zones";
 import ActivityTrendline from "./OddsTrendline";
 
 interface ZoneRowProps {
@@ -26,9 +26,15 @@ export default function ZoneRow({
   const setSelectedZone = useGameStore((s) => s.setSelectedZone);
   const isResolving = useGameStore((s) => s.isResolving);
   const lastWinner = useGameStore((s) => s.lastWinner);
+  const zones = useGameStore((s) => s.zones);
 
   const isWinner = lastWinner === zone.id && isResolving;
   const isHot = activity.heatLevel === "hot" || activity.heatLevel === "onfire";
+
+  const totalWeighted = ZONE_IDS.reduce((sum, zid) => sum + zones[zid].weightedScore, 0);
+  const winChance = totalWeighted > 0
+    ? Math.round((activity.weightedScore / totalWeighted) * 1000) / 10
+    : 0;
 
   return (
     <motion.div
@@ -110,22 +116,26 @@ export default function ZoneRow({
             )}
           </div>
           <p className="text-[9px] text-gray-400 leading-tight">{zone.topping}</p>
-          <div className="flex items-center gap-2 mt-0.5">
-            <motion.span
-              key={activity.totalVolume}
-              initial={{ color: zone.color }}
-              animate={{ color: "#6B7280" }}
-              transition={{ duration: 0.8 }}
-              className="font-numbers text-[10px]"
-            >
-              {formatMON(activity.totalVolume)} MON
-            </motion.span>
-            <span className="text-gray-200">|</span>
+          <div className="flex items-center gap-1.5 mt-0.5">
             <span
               className="font-numbers text-[10px] font-bold"
-              style={{ color: isHot ? zone.color : "#6B7280" }}
+              style={{ color: winChance > 0 ? zone.color : "#9CA3AF" }}
             >
-              {activity.odds.toFixed(1)}x
+              {winChance > 0 ? `${winChance.toFixed(1)}%` : "—"}
+            </span>
+            <span className="text-gray-200">|</span>
+            <span
+              className="font-numbers text-[9px] font-bold px-1 py-0.5 rounded"
+              style={{
+                color: zone.color,
+                background: `rgba(${zone.colorRgb}, 0.1)`,
+              }}
+            >
+              {activity.multiplier.toFixed(1)}x
+            </span>
+            <span className="text-gray-200">|</span>
+            <span className="font-numbers text-[9px] text-gray-400">
+              {activity.betCount} txns
             </span>
           </div>
         </div>

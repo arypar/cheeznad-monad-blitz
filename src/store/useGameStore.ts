@@ -2,8 +2,6 @@ import { create } from "zustand";
 import { ZoneId, ZoneActivity, Transaction, UserBet, HeatLevel } from "@/types";
 import { ZONE_IDS } from "@/lib/zones";
 
-const ROUND_DURATION = 60_000; // 1 minute
-
 function calcHeatLevel(recentTxCount: number): HeatLevel {
   if (recentTxCount >= 12) return "onfire";
   if (recentTxCount >= 7) return "hot";
@@ -25,15 +23,22 @@ interface RoundResult {
   timestamp: number;
 }
 
-export interface ActivityPoint {
-  time: number;
-  count: number; // cumulative total transactions
+interface ZoneScoreData {
+  txCount: number;
+  multiplier: number;
+  weightedScore: number;
 }
 
-const MAX_CHART_POINTS = 60; // 60 seconds of data
+export interface ActivityPoint {
+  time: number;
+  count: number;
+}
+
+const MAX_CHART_POINTS = 60;
 
 interface GameStore {
   zones: Record<ZoneId, ZoneActivity>;
+  multipliers: Record<ZoneId, number>;
   activityHistory: Record<ZoneId, ActivityPoint[]>;
   transactions: Transaction[];
   maxTransactions: number;
@@ -56,12 +61,27 @@ interface GameStore {
   clearFlash: () => void;
   clearScreenFlash: () => void;
   decayRecentCounts: () => void;
-  tickChart: () => void; // samples cumulative count every second
-  resolveRound: () => void;
-  startNewRound: () => void;
+  tickChart: () => void;
+  handleRoundStart: (data: {
+    roundNumber: number;
+    multipliers: Record<ZoneId, number>;
+    endsAt: number;
+  }) => void;
+  handleRoundEnd: (data: {
+    roundNumber: number;
+    winner: ZoneId;
+    scores: Record<ZoneId, ZoneScoreData>;
+  }) => void;
 }
 
-function createFreshZones(): Record<ZoneId, ZoneActivity> {
+function defaultMultipliers(): Record<ZoneId, number> {
+  const m = {} as Record<ZoneId, number>;
+  ZONE_IDS.forEach((id) => { m[id] = 1.0; });
+  return m;
+}
+
+function createFreshZones(multipliers?: Record<ZoneId, number>): Record<ZoneId, ZoneActivity> {
+  const m = multipliers || defaultMultipliers();
   const zones = {} as Record<ZoneId, ZoneActivity>;
   ZONE_IDS.forEach((id) => {
     zones[id] = {
@@ -72,6 +92,8 @@ function createFreshZones(): Record<ZoneId, ZoneActivity> {
       heatLevel: "cold",
       lastTxTimestamp: 0,
       recentTxCount: 0,
+      multiplier: m[id] ?? 1.0,
+      weightedScore: 0,
     };
   });
   return zones;
@@ -88,12 +110,13 @@ function createFreshHistory(): Record<ZoneId, ActivityPoint[]> {
 
 export const useGameStore = create<GameStore>((set, get) => ({
   zones: createFreshZones(),
+  multipliers: defaultMultipliers(),
   activityHistory: createFreshHistory(),
   transactions: [],
   maxTransactions: 50,
   userBets: [],
-  roundId: 1,
-  roundEndTime: Date.now() + ROUND_DURATION,
+  roundId: 0,
+  roundEndTime: 0,
   totalPool: 0,
   isActive: true,
   selectedZone: null,
@@ -109,14 +132,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.isResolving) return;
     const zone = state.zones[tx.zoneId];
     const newTotalPool = state.totalPool + tx.amount;
+    const newBetCount = zone.betCount + 1;
+    const multiplier = state.multipliers[tx.zoneId] ?? 1.0;
 
     const updatedZone: ZoneActivity = {
       ...zone,
       totalVolume: zone.totalVolume + tx.amount,
-      betCount: zone.betCount + 1,
+      betCount: newBetCount,
       recentTxCount: zone.recentTxCount + 1,
       lastTxTimestamp: tx.timestamp,
       heatLevel: calcHeatLevel(zone.recentTxCount + 1),
+      multiplier,
+      weightedScore: Math.round(newBetCount * multiplier * 100) / 100,
     };
 
     const updatedZones = { ...state.zones, [tx.zoneId]: updatedZone };
@@ -140,17 +167,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  // Called every second to sample cumulative count
   tickChart: () => {
     const state = get();
     const now = Date.now();
     const newHistory = { ...state.activityHistory };
 
+    const totalWeighted = ZONE_IDS.reduce(
+      (sum, zid) => sum + state.zones[zid].weightedScore,
+      0
+    );
+
     ZONE_IDS.forEach((zid) => {
-      const currentCount = state.zones[zid].betCount;
+      const chance =
+        totalWeighted > 0
+          ? Math.round((state.zones[zid].weightedScore / totalWeighted) * 1000) / 10
+          : 0;
       newHistory[zid] = [
         ...newHistory[zid],
-        { time: now, count: currentCount },
+        { time: now, count: chance },
       ].slice(-MAX_CHART_POINTS);
     });
 
@@ -206,17 +240,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (changed) set({ zones: updatedZones });
   },
 
-  resolveRound: () => {
-    const state = get();
-    let maxVol = -1;
-    let winner: ZoneId = "pepperoni";
-    ZONE_IDS.forEach((zid) => {
-      const vol = state.zones[zid].totalVolume;
-      if (vol > maxVol || (vol === maxVol && Math.random() > 0.5)) {
-        maxVol = vol;
-        winner = zid;
-      }
+  handleRoundStart: (data) => {
+    const { roundNumber, multipliers, endsAt } = data;
+    set({
+      zones: createFreshZones(multipliers),
+      multipliers,
+      activityHistory: createFreshHistory(),
+      totalPool: 0,
+      roundId: roundNumber,
+      roundEndTime: endsAt,
+      isResolving: false,
+      lastWinner: null,
+      flashZone: null,
+      screenFlash: false,
     });
+  },
+
+  handleRoundEnd: (data) => {
+    const state = get();
+    const { winner, scores } = data;
 
     const result: RoundResult = {
       roundId: state.roundId,
@@ -232,27 +274,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return bet;
     });
 
+    const updatedZones = { ...state.zones };
+    ZONE_IDS.forEach((zid) => {
+      if (scores[zid]) {
+        updatedZones[zid] = {
+          ...updatedZones[zid],
+          weightedScore: scores[zid].weightedScore,
+        };
+      }
+    });
+
     set({
+      zones: updatedZones,
       isResolving: true,
       lastWinner: winner,
       roundResults: [result, ...state.roundResults].slice(0, 10),
       userBets: updatedBets,
       screenFlash: true,
-    });
-  },
-
-  startNewRound: () => {
-    const state = get();
-    set({
-      zones: createFreshZones(),
-      activityHistory: createFreshHistory(),
-      totalPool: 0,
-      roundId: state.roundId + 1,
-      roundEndTime: Date.now() + ROUND_DURATION,
-      isResolving: false,
-      lastWinner: null,
-      flashZone: null,
-      screenFlash: false,
     });
   },
 }));

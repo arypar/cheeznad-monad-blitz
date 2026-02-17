@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useGameStore } from "@/store/useGameStore";
 import { ZONES } from "@/lib/zones";
 
@@ -12,27 +13,19 @@ export default function Header() {
   const transactions = useGameStore((s) => s.transactions);
   const isResolving = useGameStore((s) => s.isResolving);
   const lastWinner = useGameStore((s) => s.lastWinner);
-  const resolveRound = useGameStore((s) => s.resolveRound);
-  const startNewRound = useGameStore((s) => s.startNewRound);
   const [timeLeft, setTimeLeft] = useState(60);
-  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (roundEndTime <= 0) {
+        setTimeLeft(0);
+        return;
+      }
       const diff = Math.max(0, roundEndTime - Date.now());
-      const secs = Math.ceil(diff / 1000);
-      setTimeLeft(secs);
-      if (diff <= 0 && !isResolving) resolveRound();
+      setTimeLeft(Math.ceil(diff / 1000));
     }, 100);
     return () => clearInterval(interval);
-  }, [roundEndTime, isResolving, resolveRound]);
-
-  useEffect(() => {
-    if (isResolving) {
-      const timer = setTimeout(startNewRound, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [isResolving, startNewRound]);
+  }, [roundEndTime]);
 
   const timerUrgent = timeLeft <= 15;
   const timerCritical = timeLeft <= 5;
@@ -77,7 +70,9 @@ export default function Header() {
           {/* Round chip */}
           <div className="flex flex-col items-center px-3 py-1 rounded-lg bg-gray-50 border border-gray-200">
             <span className="text-[9px] text-gray-400 uppercase tracking-wider font-medium">Round</span>
-            <span className="font-numbers text-sm font-bold text-gray-800">#{roundId}</span>
+            <span className="font-numbers text-sm font-bold text-gray-800">
+              {roundId > 0 ? `#${roundId}` : "—"}
+            </span>
           </div>
 
           {/* Timer chip */}
@@ -117,7 +112,7 @@ export default function Header() {
                     {winnerZone?.toppingEmoji} {winnerZone?.name}
                   </span>
                 </motion.div>
-              ) : (
+              ) : roundEndTime > 0 ? (
                 <motion.div
                   key="timer"
                   initial={{ opacity: 0 }}
@@ -144,6 +139,20 @@ export default function Header() {
                   >
                     0:{timeLeft.toString().padStart(2, "0")}
                   </motion.span>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="waiting"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center"
+                >
+                  <span className="text-[9px] uppercase tracking-wider font-semibold text-gray-400">
+                    Connecting
+                  </span>
+                  <span className="font-numbers text-xl font-bold leading-tight text-gray-300">
+                    —:——
+                  </span>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -195,33 +204,79 @@ export default function Header() {
 
         {/* Wallet */}
         <div className="min-w-[160px] flex justify-end">
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => setConnected(!connected)}
-            className="relative px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider overflow-hidden"
-            style={{
-              background: connected
-                ? "rgba(45, 155, 45, 0.08)"
-                : "#836EF9",
-              border: connected
-                ? "1px solid rgba(45, 155, 45, 0.3)"
-                : "1px solid rgba(131, 110, 249, 0.4)",
-              boxShadow: connected
-                ? "none"
-                : "0 2px 8px rgba(131, 110, 249, 0.25)",
-              color: connected ? "#2D9B2D" : "white",
+          <ConnectButton.Custom>
+            {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
+              const ready = mounted;
+              const connected = ready && account && chain;
+
+              return (
+                <div
+                  {...(!ready && {
+                    "aria-hidden": true,
+                    style: { opacity: 0, pointerEvents: "none", userSelect: "none" },
+                  })}
+                >
+                  {(() => {
+                    if (!connected) {
+                      return (
+                        <motion.button
+                          whileHover={{ scale: 1.04 }}
+                          whileTap={{ scale: 0.96 }}
+                          onClick={openConnectModal}
+                          className="relative px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider"
+                          style={{
+                            background: "#836EF9",
+                            border: "1px solid rgba(131, 110, 249, 0.4)",
+                            boxShadow: "0 2px 8px rgba(131, 110, 249, 0.25)",
+                            color: "white",
+                          }}
+                        >
+                          Connect Wallet
+                        </motion.button>
+                      );
+                    }
+
+                    if (chain.unsupported) {
+                      return (
+                        <motion.button
+                          whileHover={{ scale: 1.04 }}
+                          whileTap={{ scale: 0.96 }}
+                          onClick={openChainModal}
+                          className="relative px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider"
+                          style={{
+                            background: "rgba(230, 57, 70, 0.08)",
+                            border: "1px solid rgba(230, 57, 70, 0.3)",
+                            color: "#E63946",
+                          }}
+                        >
+                          Wrong Network
+                        </motion.button>
+                      );
+                    }
+
+                    return (
+                      <motion.button
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.96 }}
+                        onClick={openAccountModal}
+                        className="relative px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider"
+                        style={{
+                          background: "rgba(45, 155, 45, 0.08)",
+                          border: "1px solid rgba(45, 155, 45, 0.3)",
+                          color: "#2D9B2D",
+                        }}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-green-500 rounded-full" />
+                          {account.displayName}
+                        </span>
+                      </motion.button>
+                    );
+                  })()}
+                </div>
+              );
             }}
-          >
-            {connected ? (
-              <span className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full" />
-                0x1a2b...9f3d
-              </span>
-            ) : (
-              "Connect Wallet"
-            )}
-          </motion.button>
+          </ConnectButton.Custom>
         </div>
       </div>
     </header>

@@ -1,6 +1,14 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { config } from "./config.js";
-import type { ClassifiedTransaction, ClassifiedTransactionMessage } from "./types.js";
+import { getCurrentRoundState } from "./rounds.js";
+import type {
+  ClassifiedTransaction,
+  ClassifiedTransactionMessage,
+  RoundStartMessage,
+  RoundEndMessage,
+  ZoneId,
+  ZoneScore,
+} from "./types.js";
 
 let wss: WebSocketServer | null = null;
 
@@ -16,6 +24,19 @@ export function startServer(): WebSocketServer {
     console.log(`[server] client connected: ${clientAddr}`);
 
     ws.send(JSON.stringify({ type: "connected", message: "Monad transaction feed active" }));
+
+    const roundState = getCurrentRoundState();
+    if (roundState.roundNumber > 0) {
+      const msg: RoundStartMessage = {
+        type: "round_start",
+        data: {
+          roundNumber: roundState.roundNumber,
+          multipliers: roundState.multipliers,
+          endsAt: roundState.endsAt,
+        },
+      };
+      ws.send(JSON.stringify(msg));
+    }
 
     ws.on("close", () => {
       console.log(`[server] client disconnected: ${clientAddr}`);
@@ -67,6 +88,40 @@ export function broadcast(transactions: ClassifiedTransaction[]): void {
       client.send(payload);
     }
   }
+}
+
+export function broadcastRoundStart(data: {
+  roundNumber: number;
+  multipliers: Record<ZoneId, number>;
+  endsAt: number;
+}): void {
+  if (!wss) return;
+
+  const msg: RoundStartMessage = { type: "round_start", data };
+  const payload = JSON.stringify(msg);
+
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload);
+    }
+  });
+}
+
+export function broadcastRoundEnd(data: {
+  roundNumber: number;
+  winner: ZoneId;
+  scores: Record<ZoneId, ZoneScore>;
+}): void {
+  if (!wss) return;
+
+  const msg: RoundEndMessage = { type: "round_end", data };
+  const payload = JSON.stringify(msg);
+
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload);
+    }
+  });
 }
 
 export function getClientCount(): number {
