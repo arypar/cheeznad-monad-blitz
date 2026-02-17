@@ -48,7 +48,7 @@ export function useLiveFeed() {
   const handleRoundStart = useGameStore((s) => s.handleRoundStart);
   const handleRoundEnd = useGameStore((s) => s.handleRoundEnd);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
