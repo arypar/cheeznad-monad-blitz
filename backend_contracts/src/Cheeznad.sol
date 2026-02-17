@@ -21,11 +21,14 @@ contract Cheeznad {
     mapping(Zone => ZoneInfo) public zones;
     address public oracle;
     uint256 public lastDistributionTime;
-    uint256 public constant DISTRIBUTION_INTERVAL = 60;
+    uint256 public roundStartTime;
+    uint256 public constant ROUND_DURATION = 180; // 3 minutes total
+    uint256 public constant BETTING_DURATION = 60; // 1 minute betting window
     
     event Deposit(address indexed user, Zone indexed zone, uint256 amount);
     event Distribution(Zone indexed winningZone, uint256 totalAmount, uint256 timestamp);
     event OracleUpdated(address indexed newOracle);
+    event RoundStarted(uint256 roundStartTime);
     
     modifier onlyOracle() {
         require(msg.sender == oracle, "Only oracle can call this function");
@@ -34,11 +37,14 @@ contract Cheeznad {
     
     constructor(address _oracle) {
         oracle = _oracle;
+        roundStartTime = block.timestamp;
         lastDistributionTime = block.timestamp;
+        emit RoundStarted(roundStartTime);
     }
     
     function deposit(Zone _zone) external payable {
         require(msg.value > 0, "Deposit must be greater than 0");
+        require(isBettingOpen(), "Betting window is closed");
         
         ZoneInfo storage zone = zones[_zone];
         
@@ -56,7 +62,7 @@ contract Cheeznad {
     }
     
     function distribute(Zone _winningZone) external onlyOracle {
-        require(block.timestamp >= lastDistributionTime + DISTRIBUTION_INTERVAL, "Distribution interval not reached");
+        require(canDistribute(), "Round not ready for distribution");
 
         uint256 totalFunds = address(this).balance;
         require(totalFunds > 0, "No funds to distribute");
@@ -80,8 +86,12 @@ contract Cheeznad {
         // Reset all zones for next round
         _resetAllZones();
         
+        // Start new round
+        roundStartTime = block.timestamp;
         lastDistributionTime = block.timestamp;
+        
         emit Distribution(_winningZone, totalFunds, block.timestamp);
+        emit RoundStarted(roundStartTime);
     }
     
     function _resetAllZones() private {
@@ -127,7 +137,39 @@ contract Cheeznad {
         emit OracleUpdated(_newOracle);
     }
     
-    function canDistribute() external view returns (bool) {
-        return block.timestamp >= lastDistributionTime + DISTRIBUTION_INTERVAL;
+    function canDistribute() public view returns (bool) {
+        return block.timestamp >= roundStartTime + ROUND_DURATION;
+    }
+    
+    function isBettingOpen() public view returns (bool) {
+        return block.timestamp <= roundStartTime + BETTING_DURATION;
+    }
+    
+    function getRoundTimeRemaining() external view returns (uint256) {
+        if (block.timestamp >= roundStartTime + ROUND_DURATION) {
+            return 0;
+        }
+        return (roundStartTime + ROUND_DURATION) - block.timestamp;
+    }
+    
+    function getBettingTimeRemaining() external view returns (uint256) {
+        if (block.timestamp >= roundStartTime + BETTING_DURATION) {
+            return 0;
+        }
+        return (roundStartTime + BETTING_DURATION) - block.timestamp;
+    }
+    
+    function getCurrentRoundPhase() external view returns (string memory) {
+        if (isBettingOpen()) {
+            return "BETTING";
+        } else if (block.timestamp < roundStartTime + ROUND_DURATION) {
+            return "WAITING";
+        } else {
+            return "COMPLETE";
+        }
+    }
+    
+    function getRoundStartTime() external view returns (uint256) {
+        return roundStartTime;
     }
 }
