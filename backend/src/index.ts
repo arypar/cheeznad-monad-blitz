@@ -141,6 +141,30 @@ async function main() {
       `  ${blockStr}  ${txStr}  ${xferStr}  ${otherStr}  ${matchStr}  ${zonesPadded}${bar}${clientStr}`
     );
 
+    // Per-protocol breakdown line
+    if (transactions.length > 0) {
+      const byZoneProto: Record<ZoneId, Record<string, number>> = {
+        pepperoni: {}, mushroom: {}, pineapple: {}, olive: {}, anchovy: {},
+      };
+      for (const tx of transactions) {
+        byZoneProto[tx.zoneId][tx.protocolName] = (byZoneProto[tx.zoneId][tx.protocolName] || 0) + 1;
+      }
+
+      const parts: string[] = [];
+      for (const z of ALL_ZONES) {
+        const protos = byZoneProto[z];
+        const entries = Object.entries(protos).sort((a, b) => b[1] - a[1]);
+        if (entries.length === 0) continue;
+        const protoStr = entries
+          .map(([name, count]) => `${name}${DIM}×${RESET}${count}`)
+          .join(`${DIM}, ${RESET}`);
+        parts.push(`${ZONE_COLORS[z]}${ZONE_LABELS[z]}${RESET}${DIM}[${RESET}${protoStr}${DIM}]${RESET}`);
+      }
+      if (parts.length > 0) {
+        console.log(`    ${DIM}└─${RESET} ${parts.join(`  `)}`);
+      }
+    }
+
     if (transactions.length > 0) {
       broadcast(transactions);
     }

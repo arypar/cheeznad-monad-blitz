@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { motion, LayoutGroup } from "framer-motion";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
 import { useGameStore } from "@/store/useGameStore";
 import { ZONE_LIST } from "@/lib/zones";
 import CheesyNav from "@/components/CheesyNav";
-// import Ticker from "@/components/Ticker";
 import ZoneRow from "@/components/ZoneRow";
 import BottomRow from "@/components/BottomRow";
 import PastWinners from "@/components/PastWinners";
-// import BettingModal from "@/components/BettingModal";
 import SimpleBetModal from "@/components/SimpleBetModal";
 import WinCelebration from "@/components/WinCelebration";
 import type { ZoneId } from "@/types";
@@ -34,31 +33,47 @@ export default function Home() {
     setSelectedZone(null);
   }, []);
 
+  // Sort zones by weighted score descending (leaderboard)
+  const sortedZones = useMemo(() => {
+    return [...ZONE_LIST].sort((a, b) => {
+      const diff =
+        (zones[b.id]?.weightedScore ?? 0) - (zones[a.id]?.weightedScore ?? 0);
+      if (diff !== 0) return diff;
+      return a.id.localeCompare(b.id);
+    });
+  }, [zones]);
+
   return (
     <div className="page">
       <CheesyNav />
       <BottomRow />
-      {/* <Ticker /> */}
 
       <div className="zones-card">
-        {ZONE_LIST.map((zone) => (
-          <ZoneRow
-            key={zone.id}
-            zone={zone}
-            activity={zones[zone.id]}
-            onOpenModal={openModal}
-          />
-        ))}
+        <LayoutGroup>
+          {sortedZones.map((zone, idx) => (
+            <motion.div
+              key={zone.id}
+              layout
+              transition={{
+                layout: {
+                  type: "spring",
+                  damping: 25,
+                  stiffness: 200,
+                },
+              }}
+            >
+              <ZoneRow
+                zone={zone}
+                activity={zones[zone.id]}
+                onOpenModal={openModal}
+                rank={idx + 1}
+              />
+            </motion.div>
+          ))}
+        </LayoutGroup>
       </div>
 
       <PastWinners />
-
-      {/* Multi-zone "make your own slice" modal — commented out for now */}
-      {/* <BettingModal
-        isOpen={modalOpen}
-        onClose={closeModal}
-        preselectedZone={selectedZone}
-      /> */}
 
       <SimpleBetModal
         isOpen={modalOpen}

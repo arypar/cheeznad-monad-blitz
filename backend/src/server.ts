@@ -93,6 +93,7 @@ export function broadcast(transactions: ClassifiedTransaction[]): void {
         blockNumber: Number(tx.blockNumber),
         timestamp: tx.timestamp,
         contractName: tx.contractName,
+        protocolName: tx.protocolName,
       },
     };
 

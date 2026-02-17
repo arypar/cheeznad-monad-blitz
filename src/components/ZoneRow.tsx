@@ -9,12 +9,14 @@ interface ZoneRowProps {
   zone: Zone;
   activity: ZoneActivity;
   onOpenModal: (zoneId: string) => void;
+  rank?: number;
 }
 
 export default function ZoneRow({
   zone,
   activity,
   onOpenModal,
+  rank,
 }: ZoneRowProps) {
   const zones = useGameStore((s) => s.zones);
   const [isHovered, setIsHovered] = useState(false);
@@ -34,12 +36,17 @@ export default function ZoneRow({
 
   return (
     <div
-      className={`zone-row ${heatClass}${isHot ? " is-hot" : ""}`}
+      className={`zone-row ${heatClass}${isHot ? " is-hot" : ""}${rank === 1 ? " zone-row-leader" : ""}`}
       onClick={() => onOpenModal(zone.id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className="slice-wrap">
+        {rank !== undefined && (
+          <div className={`zone-rank zone-rank-${Math.min(rank, 4)}`}>
+            {rank}
+          </div>
+        )}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="slice-img"
@@ -51,6 +58,7 @@ export default function ZoneRow({
       <div className="zone-meta">
         <div className="zone-name">{zone.name}</div>
         <div className="zone-protocol">{zone.displayName}</div>
+        <MultiplierBadge value={activity.multiplier} />
       </div>
 
       <div className="bar-col">
@@ -84,6 +92,11 @@ export default function ZoneRow({
         <div className="tps-row">
           <span className="tps-num">{activity.betCount.toLocaleString()}</span>
           <span className="tps-unit">txns</span>
+          {activity.weightedScore > 0 && (
+            <span className="weighted-score">
+              = {activity.weightedScore.toLocaleString()} pts
+            </span>
+          )}
         </div>
       </div>
 
@@ -99,6 +112,21 @@ export default function ZoneRow({
         </button>
       </div>
     </div>
+  );
+}
+
+function MultiplierBadge({ value }: { value: number }) {
+  const isHigh = value >= 2.0;
+  const isBoosted = value >= 1.5;
+  const label = `${value.toFixed(1)}x`;
+
+  return (
+    <span
+      className={`mult-badge${isHigh ? " mult-high" : isBoosted ? " mult-boosted" : ""}`}
+      title={`Each transaction counts as ${value.toFixed(1)} points. ${isHigh ? "Underdog boost!" : isBoosted ? "Slight boost this round." : "Standard weight."}`}
+    >
+      {isHigh && "🔥 "}{label}
+    </span>
   );
 }
 

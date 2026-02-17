@@ -10,6 +10,7 @@ export interface ClassifiedTransaction {
   blockNumber: bigint;
   timestamp: number;
   contractName: string;
+  protocolName: string;
 }
 
 export interface ClassifiedTransactionMessage {
@@ -24,6 +25,7 @@ export interface ClassifiedTransactionMessage {
     blockNumber: number;
     timestamp: number;
     contractName: string;
+    protocolName: string;
   };
 }
 

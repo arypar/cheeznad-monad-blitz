@@ -37,6 +37,7 @@ export function classifyBlock(block: BlockWithTransactions): {
         blockNumber: block.number ?? 0n,
         timestamp: Number(block.timestamp),
         contractName: entry.contractName,
+        protocolName: entry.protocolName,
       });
     } else if (tx.input === "0x" || tx.input === "0x0") {
       nativeTransfers++;

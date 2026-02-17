@@ -14,10 +14,12 @@ interface SimpleBetModalProps {
 export default function SimpleBetModal({ isOpen, onClose, zoneId }: SimpleBetModalProps) {
   const placeBet = useGameStore((s) => s.placeBet);
   const isResolving = useGameStore((s) => s.isResolving);
+  const zoneActivity = useGameStore((s) => zoneId ? s.zones[zoneId] : null);
   const [amount, setAmount] = useState("0.5");
 
   const zone = zoneId ? ZONES[zoneId] : null;
   const amtNum = parseFloat(amount) || 0;
+  const multiplier = zoneActivity?.multiplier ?? 1.0;
 
   const handlePlaceBet = useCallback(() => {
     if (isResolving || amtNum <= 0 || !zoneId) return;
@@ -45,6 +47,24 @@ export default function SimpleBetModal({ isOpen, onClose, zoneId }: SimpleBetMod
           <div>
             <div className="simple-modal-zone">{zone.name}</div>
             <div className="simple-modal-topping" style={{ textTransform: "capitalize" }}>{zone.displayName}</div>
+          </div>
+        </div>
+
+        <div className="simple-modal-multiplier">
+          <div className="simple-modal-mult-row">
+            <span className="simple-modal-mult-label">Round multiplier</span>
+            <span className={`simple-modal-mult-value${multiplier >= 2.0 ? " high" : multiplier >= 1.5 ? " boosted" : ""}`}>
+              {multiplier.toFixed(1)}x
+            </span>
+          </div>
+          <div className="simple-modal-mult-explain">
+            {multiplier >= 2.0
+              ? "Underdog boost — each txn here counts extra toward winning!"
+              : multiplier >= 1.5
+                ? "This category has a slight edge this round."
+                : multiplier < 1.0
+                  ? "Popular pick — each txn counts for less toward winning."
+                  : "Standard weight this round."}
           </div>
         </div>
 

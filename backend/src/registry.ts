@@ -135,6 +135,13 @@ export async function initRegistry(): Promise<void> {
     olive: 0,
     anchovy: 0,
   };
+  const zoneProtocols: Record<ZoneId, Set<string>> = {
+    pepperoni: new Set(),
+    mushroom: new Set(),
+    pineapple: new Set(),
+    olive: new Set(),
+    anchovy: new Set(),
+  };
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -152,6 +159,9 @@ export async function initRegistry(): Promise<void> {
 
     if (!address.startsWith("0x")) continue;
 
+    // Skip spammy protocols
+    if (protocolName === "Redstone") { skipped++; continue; }
+
     const zoneId = resolveZone(category);
     if (!zoneId) {
       skipped++;
@@ -166,6 +176,7 @@ export async function initRegistry(): Promise<void> {
     });
 
     zoneCounts[zoneId]++;
+    zoneProtocols[zoneId].add(protocolName);
     loaded++;
   }
 
@@ -176,6 +187,21 @@ export async function initRegistry(): Promise<void> {
         .map(([z, c]) => `${z}:${c}`)
         .join("  ")
   );
+
+  const ZONE_NAMES: Record<ZoneId, string> = {
+    pepperoni: "DEX & Trading",
+    mushroom: "Lending & Staking",
+    pineapple: "Meme & Launch",
+    olive: "Infrastructure",
+    anchovy: "Gaming & Social",
+  };
+
+  for (const zoneId of Object.keys(zoneProtocols) as ZoneId[]) {
+    const protos = Array.from(zoneProtocols[zoneId]).sort();
+    console.log(
+      `[registry]   ${ZONE_NAMES[zoneId]} (${zoneCounts[zoneId]} addrs, ${protos.length} protocols): ${protos.join(", ")}`
+    );
+  }
 }
 
 export function lookupAddress(address: string): RegistryEntry | undefined {
