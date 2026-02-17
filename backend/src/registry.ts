@@ -109,6 +109,21 @@ const CATEGORY_TO_ZONE: Record<string, ZoneId> = {
   "CeFi::Other": "anchovy",
 };
 
+// Supplemental addresses not in the monad-crypto/protocols CSV.
+// These are added on top of the CSV to improve classification coverage.
+type SupplementalEntry = RegistryEntry & { address: string };
+const SUPPLEMENTAL_ADDRESSES: SupplementalEntry[] = [
+  // ── Native Staking ────────────────────────────────────────────────
+  // Monad staking precompile – every delegate / undelegate / claim-rewards tx
+  {
+    address: "0x0000000000000000000000000000000000001000",
+    zoneId: "mushroom",
+    protocolName: "Monad Native Staking",
+    contractName: "StakingPrecompile",
+    category: "DeFi::Staking",
+  },
+];
+
 function resolveZone(category: string): ZoneId | undefined {
   return CATEGORY_TO_ZONE[category];
 }
@@ -180,7 +195,21 @@ export async function initRegistry(): Promise<void> {
     loaded++;
   }
 
-  console.log(`[registry] loaded ${loaded} addresses, skipped ${skipped} unmapped`);
+  // Load supplemental addresses (not in CSV)
+  let supplementalCount = 0;
+  for (const entry of SUPPLEMENTAL_ADDRESSES) {
+    const addr = entry.address.toLowerCase();
+    if (!registry.has(addr)) {
+      const { address: _, ...registryEntry } = entry;
+      registry.set(addr, registryEntry);
+      zoneCounts[entry.zoneId]++;
+      zoneProtocols[entry.zoneId].add(entry.protocolName);
+      supplementalCount++;
+      loaded++;
+    }
+  }
+
+  console.log(`[registry] loaded ${loaded} addresses (${supplementalCount} supplemental), skipped ${skipped} unmapped`);
   console.log(
     `[registry] breakdown: ` +
       Object.entries(zoneCounts)
