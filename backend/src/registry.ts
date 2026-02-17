@@ -113,15 +113,6 @@ const CATEGORY_TO_ZONE: Record<string, ZoneId> = {
 // These are added on top of the CSV to improve classification coverage.
 type SupplementalEntry = RegistryEntry & { address: string };
 const SUPPLEMENTAL_ADDRESSES: SupplementalEntry[] = [
-  // ── Native Staking ────────────────────────────────────────────────
-  // Monad staking precompile – every delegate / undelegate / claim-rewards tx
-  {
-    address: "0x0000000000000000000000000000000000001000",
-    zoneId: "mushroom",
-    protocolName: "Monad Native Staking",
-    contractName: "StakingPrecompile",
-    category: "DeFi::Staking",
-  },
 ];
 
 function resolveZone(category: string): ZoneId | undefined {
