@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useGameStore } from "@/store/useGameStore";
+import { useContractPool } from "@/hooks/useContractPool";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -10,7 +11,7 @@ function formatTime(seconds: number): string {
 }
 
 export default function BottomRow() {
-  const totalPool = useGameStore((s) => s.totalPool);
+  const { totalPool } = useContractPool();
   const roundEndTime = useGameStore((s) => s.roundEndTime);
   const bettingEndTime = useGameStore((s) => s.bettingEndTime);
   const isBettingOpen = useGameStore((s) => s.isBettingOpen);
@@ -76,17 +77,16 @@ export default function BottomRow() {
             {isBettingOpen ? "Betting Open" : "Betting Closed"}
           </span>
           <div className="pool-stat-value-row">
-            <span className="timer-value">
-              {isBettingOpen && bettingTimeLeft > 0
-                ? formatTime(bettingTimeLeft)
-                : "—:——"}
-            </span>
-            {isBettingOpen && bettingTimeLeft > 0 && (
-              <span className={`timer-tag${bettingCritical ? " critical" : bettingUrgent ? " urgent" : ""}`}>
-                {bettingCritical ? "LAST CALL" : bettingUrgent ? "CLOSING" : "to bet"}
-              </span>
-            )}
-            {!isBettingOpen && (
+            {isBettingOpen && bettingTimeLeft > 0 ? (
+              <>
+                <span className="timer-value">
+                  {formatTime(bettingTimeLeft)}
+                </span>
+                <span className={`timer-tag${bettingCritical ? " critical" : bettingUrgent ? " urgent" : ""}`}>
+                  {bettingCritical ? "LAST CALL" : bettingUrgent ? "CLOSING" : "to bet"}
+                </span>
+              </>
+            ) : (
               <span className="timer-tag">LOCKED</span>
             )}
           </div>

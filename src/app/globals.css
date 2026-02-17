@@ -508,6 +508,38 @@ nav {
 .timer-tag.urgent { color: #b45309; background: #fffbeb; }
 .timer-tag.critical { color: #dc2626; background: #fef2f2; animation: timerPulse 0.5s ease-in-out infinite; }
 
+/* POOL BANNER RESPONSIVE */
+@media (max-width: 640px) {
+  .pool-banner {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .pool-banner-stats {
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+  .pool-banner-divider {
+    display: none;
+  }
+  .pool-stat-value,
+  .timer-value {
+    font-size: 24px;
+  }
+  .pool-stat-label {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .pool-banner-stats {
+    gap: 8px 16px;
+  }
+  .pool-stat-value,
+  .timer-value {
+    font-size: 20px;
+  }
+}
+
 .own-slice-btn {
   background: linear-gradient(130deg, #ffd200 0%, #ff8800 100%);
   color: #fff; border: none; border-radius: 30px; padding: 14px 30px;
@@ -859,4 +891,38 @@ nav {
   60%  { transform: translate(20px, -70px) rotate(var(--pizza-rotate-end)) scale(1.05); }
   80%  { transform: translate(-25px, -35px) rotate(calc(var(--pizza-rotate-end) - 40deg)) scale(0.97); }
   100% { transform: translate(0, 0) rotate(var(--pizza-rotate-start)) scale(1); }
+}
+
+/* MOBILE RESPONSIVE */
+@media (max-width: 640px) {
+  body {
+    padding: 12px 10px 60px;
+  }
+  .zone-row {
+    grid-template-columns: 64px 90px 1fr auto;
+    gap: 8px;
+    padding: 8px 4px;
+  }
+  .slice-wrap {
+    width: 64px;
+    height: 60px;
+  }
+  .slice-img {
+    width: 58px;
+    height: 54px;
+  }
+  .zone-name {
+    font-size: 14px;
+  }
+  .zone-rank {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+  }
+  .zones-card {
+    padding: 4px 10px;
+  }
+  .logo img {
+    height: 64px;
+  }
 }

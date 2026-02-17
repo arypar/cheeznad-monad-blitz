@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
@@ -30,19 +30,13 @@ const SCENES: Scene[] = [
 
 const SCENE_DURATIONS: Record<Scene, number | null> = {
   titleDrop: 4000,
-  theHook: 6000,
-  zonesReveal: 5000,
+  theHook: 11000,
+  zonesReveal: 13000,
   pizzaPicker: null,
   howItWorks: 5000,
   connectWallet: null,
   launchCta: null,
 };
-
-const INTERACTIVE_SCENES: Set<Scene> = new Set([
-  "pizzaPicker",
-  "connectWallet",
-  "launchCta",
-]);
 
 // ─── Shared transition ──────────────────────────────────────────────────────────
 const pageTransition = {
@@ -105,18 +99,19 @@ function seededRandom(seed: number) {
   return x - Math.floor(x);
 }
 
-// ─── Floating Pizza Background (every scene) ───────────────────────────────────
+// ─── Floating Slice Background (every scene) ───────────────────────────────────
 function FloatingPizzas({ count = 10, seed = 0 }: { count?: number; seed?: number }) {
   const pizzas = useMemo(
     () =>
       Array.from({ length: count }).map((_, i) => ({
-        x: seededRandom(seed + i * 7) * 100,
-        y: seededRandom(seed + i * 13) * 100,
-        size: seededRandom(seed + i * 19) * 20 + 14,
-        delay: seededRandom(seed + i * 23) * 6,
-        duration: seededRandom(seed + i * 29) * 8 + 10,
-        rotate: seededRandom(seed + i * 31) * 360,
-        drift: (seededRandom(seed + i * 37) - 0.5) * 60,
+        x: Math.round(seededRandom(seed + i * 7) * 100),
+        y: Math.round(seededRandom(seed + i * 13) * 100),
+        size: Math.round(seededRandom(seed + i * 19) * 30 + 24),
+        delay: Math.round(seededRandom(seed + i * 23) * 60) / 10,
+        duration: Math.round(seededRandom(seed + i * 29) * 80 + 100) / 10,
+        rotate: Math.round(seededRandom(seed + i * 31) * 360),
+        drift: Math.round((seededRandom(seed + i * 37) - 0.5) * 60),
+        imageIdx: Math.floor(seededRandom(seed + i * 43) * ZONE_LIST.length),
       })),
     [count, seed]
   );
@@ -124,17 +119,16 @@ function FloatingPizzas({ count = 10, seed = 0 }: { count?: number; seed?: numbe
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
       {pizzas.map((p, i) => (
-        <motion.span
+        <motion.div
           key={i}
           className="absolute select-none"
           style={{
             left: `${p.x}%`,
             top: `${p.y}%`,
-            fontSize: p.size,
           }}
           initial={{ opacity: 0, rotate: p.rotate }}
           animate={{
-            opacity: [0, 0.12, 0.08, 0.12, 0],
+            opacity: [0, 0.15, 0.1, 0.15, 0],
             y: [0, p.drift, -p.drift, 0],
             x: [0, p.drift * 0.5, -p.drift * 0.3, 0],
             rotate: [p.rotate, p.rotate + 30, p.rotate - 20, p.rotate + 10],
@@ -146,24 +140,31 @@ function FloatingPizzas({ count = 10, seed = 0 }: { count?: number; seed?: numbe
             ease: "linear",
           }}
         >
-          🍕
-        </motion.span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={ZONE_LIST[p.imageIdx].sliceImage}
+            alt=""
+            style={{ width: p.size, height: p.size }}
+            draggable={false}
+          />
+        </motion.div>
       ))}
     </div>
   );
 }
 
-// ─── Pizza Rain (title + CTA screens) ───────────────────────────────────────────
+// ─── Slice Rain (title + CTA screens) ────────────────────────────────────────────
 function PizzaRain({ count = 30 }: { count?: number }) {
   const slices = useMemo(
     () =>
       Array.from({ length: count }).map((_, i) => ({
-        x: seededRandom(i * 43 + 7) * 100,
-        delay: seededRandom(i * 17 + 3) * 4,
-        duration: seededRandom(i * 11 + 5) * 3 + 3,
-        size: seededRandom(i * 23 + 9) * 18 + 16,
-        rotate: seededRandom(i * 31 + 2) * 720 - 360,
-        wobble: (seededRandom(i * 41 + 1) - 0.5) * 80,
+        x: Math.round(seededRandom(i * 43 + 7) * 100),
+        delay: Math.round(seededRandom(i * 17 + 3) * 40) / 10,
+        duration: Math.round(seededRandom(i * 11 + 5) * 30 + 30) / 10,
+        size: Math.round(seededRandom(i * 23 + 9) * 24 + 20),
+        rotate: Math.round(seededRandom(i * 31 + 2) * 720 - 360),
+        wobble: Math.round((seededRandom(i * 41 + 1) - 0.5) * 80),
+        imageIdx: Math.floor(seededRandom(i * 53 + 8) * ZONE_LIST.length),
       })),
     [count]
   );
@@ -171,15 +172,15 @@ function PizzaRain({ count = 30 }: { count?: number }) {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
       {slices.map((s, i) => (
-        <motion.span
+        <motion.div
           key={i}
           className="absolute select-none"
-          style={{ left: `${s.x}%`, top: -40, fontSize: s.size }}
+          style={{ left: `${s.x}%`, top: -40 }}
           animate={{
-            y: [0, typeof window !== "undefined" ? window.innerHeight + 80 : 900],
+            y: [0, 1000],
             x: [0, s.wobble],
             rotate: [0, s.rotate],
-            opacity: [0.7, 0.5, 0],
+            opacity: [0.6, 0.4, 0],
           }}
           transition={{
             duration: s.duration,
@@ -188,8 +189,14 @@ function PizzaRain({ count = 30 }: { count?: number }) {
             ease: "linear",
           }}
         >
-          🍕
-        </motion.span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={ZONE_LIST[s.imageIdx].sliceImage}
+            alt=""
+            style={{ width: s.size, height: s.size }}
+            draggable={false}
+          />
+        </motion.div>
       ))}
     </div>
   );
@@ -203,84 +210,29 @@ function ProgressBar({
   sceneIndex: number;
   total: number;
 }) {
-  const pct = ((sceneIndex + 1) / total) * 100;
-
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 h-6 flex items-center">
-      {/* Track background */}
-      <div
-        className="absolute inset-0"
-        style={{ background: "rgba(255,255,255,0.04)" }}
-      />
-
-      {/* Filled bar */}
-      <motion.div
-        className="h-full relative overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(90deg, #E63946, #c43030, #E63946, #D4A017)",
-          backgroundSize: "200% 100%",
-        }}
-        initial={{ width: "0%" }}
-        animate={{
-          width: `${pct}%`,
-          backgroundPosition: ["0% 0%", "100% 0%"],
-        }}
-        transition={{
-          width: { duration: 0.6, ease: "easeOut" },
-          backgroundPosition: { duration: 3, repeat: Infinity, ease: "linear" },
-        }}
-      >
-        {/* Cheese drip texture */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(255,220,100,0.25) 18px, rgba(255,220,100,0.25) 20px)",
-          }}
-        />
-      </motion.div>
-
-      {/* Pizza emoji at the leading edge */}
-      <motion.span
-        className="absolute z-10 select-none"
-        style={{ fontSize: 18, top: -7 }}
-        initial={{ left: "0%" }}
-        animate={{
-          left: `${pct}%`,
-          rotate: [0, 15, -15, 0],
-        }}
-        transition={{
-          left: { duration: 0.6, ease: "easeOut" },
-          rotate: { duration: 1.2, repeat: Infinity, ease: "easeInOut" },
-        }}
-      >
-        🍕
-      </motion.span>
-
-      {/* Milestone pizza markers */}
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2">
       {Array.from({ length: total }).map((_, i) => {
-        const pos = ((i + 1) / total) * 100;
-        const reached = sceneIndex >= i;
+        const isActive = sceneIndex === i;
+        const isDone = sceneIndex > i;
         return (
-          <motion.span
+          <motion.div
             key={i}
-            className="absolute select-none"
+            className="rounded-full"
             style={{
-              left: `${pos}%`,
-              top: -4,
-              fontSize: 10,
-              transform: "translateX(-50%)",
+              background: isActive
+                ? "#111"
+                : isDone
+                  ? "rgba(0,0,0,0.3)"
+                  : "rgba(0,0,0,0.1)",
             }}
-            initial={{ opacity: 0, scale: 0 }}
+            initial={false}
             animate={{
-              opacity: reached ? 0.7 : 0.15,
-              scale: reached ? 1 : 0.7,
+              width: isActive ? 28 : 8,
+              height: 8,
             }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-          >
-            🍕
-          </motion.span>
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          />
         );
       })}
     </div>
@@ -291,167 +243,216 @@ function ProgressBar({
 function NavHint({ canGoBack, canGoForward }: { canGoBack: boolean; canGoForward: boolean }) {
   return (
     <motion.div
-      className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3"
+      className="fixed bottom-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 1.5 }}
     >
-      {canGoBack && (
-        <span className="text-white/20 text-[10px] tracking-widest uppercase flex items-center gap-1">
-          <span className="inline-block border border-white/20 rounded px-1.5 py-0.5 text-[9px] font-mono">
-            ←
-          </span>
-        </span>
-      )}
-      <span className="text-white/15 text-[10px] tracking-[0.2em] uppercase">
-        use arrow keys 🍕
+      <span
+        className="text-[10px] tracking-[0.2em] uppercase"
+        style={{ color: "rgba(0,0,0,0.2)" }}
+      >
+        use arrow keys
       </span>
-      {canGoForward && (
-        <span className="text-white/20 text-[10px] tracking-widest uppercase flex items-center gap-1">
-          <span className="inline-block border border-white/20 rounded px-1.5 py-0.5 text-[9px] font-mono">
-            →
-          </span>
-        </span>
-      )}
     </motion.div>
   );
 }
 
 // ─── Scene 1: Title Drop ────────────────────────────────────────────────────────
 function TitleDropScene() {
-  const titleControls = useAnimation();
-  const [showSubtitle, setShowSubtitle] = useState(false);
+  const [phase, setPhase] = useState<"pre" | "slam" | "shake" | "settled">("pre");
 
   useEffect(() => {
-    const run = async () => {
-      await titleControls.start({
-        scale: [3, 0.9, 1.05, 1],
-        opacity: [0, 1, 1, 1],
-        y: ["-100%", "5%", "-2%", "0%"],
-        transition: { duration: 0.8, times: [0, 0.5, 0.75, 1], ease: "easeOut" },
-      });
-      setShowSubtitle(true);
+    // Kick off the slam immediately
+    const t0 = requestAnimationFrame(() => setPhase("slam"));
+    const t1 = setTimeout(() => setPhase("shake"), 600);
+    const t2 = setTimeout(() => setPhase("settled"), 1100);
+    return () => {
+      cancelAnimationFrame(t0);
+      clearTimeout(t1);
+      clearTimeout(t2);
     };
-    run();
-  }, [titleControls]);
+  }, []);
 
-  const orbitEmojis = useMemo(
+  const orbitSlices = useMemo(
     () =>
       ZONE_LIST.map((z, i) => ({
-        emoji: z.toppingEmoji,
-        delay: i * 0.15,
-        angle: (i / 5) * 360,
-        color: z.color,
+        angle: Math.round((i / 5) * 360),
+        sliceImage: z.sliceImage,
+        delay: i * 0.12,
       })),
     []
   );
 
   return (
     <motion.div
-      {...pageTransition}
+      initial={{ opacity: 1 }}
+      animate={
+        phase === "shake"
+          ? { x: [0, -12, 14, -10, 8, -4, 2, 0], y: [0, 8, -6, 10, -8, 4, -2, 0] }
+          : { x: 0, y: 0 }
+      }
+      transition={phase === "shake" ? { duration: 0.5, ease: "easeOut" } : {}}
       className="flex flex-col items-center justify-center h-full relative"
     >
       <PizzaRain count={35} />
       <FloatingPizzas count={12} seed={42} />
 
-      {/* Cycling glow */}
-      <motion.div
-        className="absolute w-72 h-72 rounded-full"
-        animate={{
-          background: [
-            "radial-gradient(circle, rgba(230,57,70,0.2) 0%, transparent 70%)",
-            "radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 70%)",
-            "radial-gradient(circle, rgba(212,160,23,0.2) 0%, transparent 70%)",
-            "radial-gradient(circle, rgba(8,145,178,0.2) 0%, transparent 70%)",
-            "radial-gradient(circle, rgba(234,88,12,0.2) 0%, transparent 70%)",
-          ],
-          scale: [2, 2.8, 2.4, 2.6, 2],
-        }}
-        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-      />
+      {/* Impact flash */}
+      <AnimatePresence>
+        {phase === "shake" && (
+          <motion.div
+            className="absolute inset-0 z-30 pointer-events-none"
+            style={{ background: "white" }}
+            initial={{ opacity: 0.6 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+          />
+        )}
+      </AnimatePresence>
 
-      {/* Orbiting zone emojis */}
-      {orbitEmojis.map((e, i) => (
-        <motion.span
-          key={i}
-          className="absolute text-3xl z-10"
-          initial={{ opacity: 0, scale: 0 }}
+      {/* Impact ring */}
+      <AnimatePresence>
+        {(phase === "shake" || phase === "settled") && (
+          <motion.div
+            className="absolute rounded-full z-10 pointer-events-none"
+            style={{ border: "3px solid rgba(230,57,70,0.3)" }}
+            initial={{ width: 0, height: 0, opacity: 0.8 }}
+            animate={{ width: 1200, height: 1200, opacity: 0 }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Cycling glow */}
+      {phase === "settled" && (
+        <motion.div
+          className="absolute w-72 h-72 rounded-full"
+          initial={{ opacity: 0 }}
           animate={{
-            opacity: 0.7,
-            scale: 1,
-            rotate: [e.angle, e.angle + 360],
-            x: [
-              Math.cos((e.angle * Math.PI) / 180) * 160,
-              Math.cos(((e.angle + 360) * Math.PI) / 180) * 160,
+            opacity: 1,
+            background: [
+              "radial-gradient(circle, rgba(230,57,70,0.12) 0%, transparent 70%)",
+              "radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)",
+              "radial-gradient(circle, rgba(212,160,23,0.12) 0%, transparent 70%)",
+              "radial-gradient(circle, rgba(8,145,178,0.12) 0%, transparent 70%)",
+              "radial-gradient(circle, rgba(234,88,12,0.12) 0%, transparent 70%)",
             ],
-            y: [
-              Math.sin((e.angle * Math.PI) / 180) * 100,
-              Math.sin(((e.angle + 360) * Math.PI) / 180) * 100,
-            ],
+            scale: [2, 2.8, 2.4, 2.6, 2],
           }}
           transition={{
-            opacity: { delay: 0.8 + e.delay, duration: 0.4 },
-            scale: { delay: 0.8 + e.delay, duration: 0.4 },
+            opacity: { duration: 0.5 },
+            background: { duration: 8, repeat: Infinity, ease: "linear" },
+            scale: { duration: 8, repeat: Infinity, ease: "linear" },
+          }}
+        />
+      )}
+
+      {/* Orbiting slice images */}
+      {orbitSlices.map((e, i) => (
+        <motion.div
+          key={i}
+          className="absolute z-10"
+          initial={{ opacity: 0, scale: 0 }}
+          animate={
+            phase === "settled"
+              ? {
+                  opacity: 0.6,
+                  scale: 1,
+                  rotate: [e.angle, e.angle + 360],
+                  x: [
+                    Math.round(Math.cos((e.angle * Math.PI) / 180) * 220),
+                    Math.round(Math.cos(((e.angle + 360) * Math.PI) / 180) * 220),
+                  ],
+                  y: [
+                    Math.round(Math.sin((e.angle * Math.PI) / 180) * 140),
+                    Math.round(Math.sin(((e.angle + 360) * Math.PI) / 180) * 140),
+                  ],
+                }
+              : { opacity: 0, scale: 0 }
+          }
+          transition={{
+            opacity: { delay: e.delay, duration: 0.4 },
+            scale: { delay: e.delay, duration: 0.4, type: "spring", stiffness: 300, damping: 15 },
             rotate: { duration: 20, repeat: Infinity, ease: "linear" },
             x: { duration: 20, repeat: Infinity, ease: "linear" },
             y: { duration: 20, repeat: Infinity, ease: "linear" },
           }}
         >
-          {e.emoji}
-        </motion.span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={e.sliceImage} alt="" style={{ width: 52, height: 52 }} draggable={false} />
+        </motion.div>
       ))}
 
-      {/* Title */}
-      <motion.h1
-        className="text-7xl sm:text-9xl font-black tracking-tighter text-white relative z-20"
-        style={{ fontFamily: "var(--font-nunito), system-ui", textShadow: "0 0 80px rgba(230,57,70,0.3)" }}
-        animate={titleControls}
+      {/* Logo -- slams in huge */}
+      <motion.div
+        className="relative z-20"
+        initial={{ y: -800, scale: 5, opacity: 0 }}
+        animate={
+          phase === "pre"
+            ? { y: -800, scale: 5, opacity: 0 }
+            : { y: 0, scale: 1, opacity: 1 }
+        }
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
       >
-        PIZZA WARS
-      </motion.h1>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/assets/cheeznad.png"
+          alt="Cheeznad"
+          className="w-[80vw] h-[80vw] sm:w-[600px] sm:h-[600px] max-w-none"
+          style={{ objectFit: "contain" }}
+          draggable={false}
+        />
+      </motion.div>
 
       {/* Subtitle */}
       <AnimatePresence>
-        {showSubtitle && (
+        {phase === "settled" && (
           <motion.p
-            className="text-sm sm:text-base text-white/50 mt-4 tracking-[0.25em] uppercase z-20 flex items-center gap-2"
+            className="text-lg sm:text-2xl mt-2 tracking-wide z-20 text-center font-bold"
+            style={{
+              fontFamily: "var(--font-nunito), system-ui",
+              color: "#111",
+            }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
           >
-            🍕 Real-time prediction market on Monad 🍕
+            The first prediction market on network utilization
           </motion.p>
         )}
       </AnimatePresence>
 
-      {/* Big pizza behind title */}
-      <motion.span
-        className="absolute text-[200px] sm:text-[280px] z-0 select-none"
-        style={{ opacity: 0.04 }}
+      {/* Big slice behind title */}
+      <motion.div
+        className="absolute z-0 select-none"
+        style={{ opacity: 0.06 }}
         animate={{ rotate: [0, 360] }}
         transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
       >
-        🍕
-      </motion.span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/pepperoni.png" alt="" style={{ width: 400, height: 400 }} draggable={false} />
+      </motion.div>
     </motion.div>
   );
 }
 
-// ─── Scene 2: The Hook ──────────────────────────────────────────────────────────
+// ─── Scene 2: The Hook (sequential story) ───────────────────────────────────────
 function TheHookScene() {
-  const [phase, setPhase] = useState(0);
+  const [beat, setBeat] = useState(0);
   const [counter, setCounter] = useState(0);
   const counterRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 800);
-    const t2 = setTimeout(() => setPhase(2), 2500);
-    const t3 = setTimeout(() => setPhase(3), 4500);
+    const t1 = setTimeout(() => setBeat(1), 2500);
+    const t2 = setTimeout(() => setBeat(2), 6500);
+    const t3 = setTimeout(() => setBeat(3), 9000);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
 
   useEffect(() => {
-    if (phase >= 1 && !counterRef.current) {
+    if (beat === 1 && !counterRef.current) {
       counterRef.current = setInterval(() => {
         setCounter((c) => {
           if (c >= 10000) {
@@ -465,7 +466,7 @@ function TheHookScene() {
     return () => {
       if (counterRef.current) clearInterval(counterRef.current);
     };
-  }, [phase]);
+  }, [beat]);
 
   return (
     <motion.div
@@ -474,192 +475,451 @@ function TheHookScene() {
     >
       <FloatingPizzas count={10} seed={99} />
 
-      {/* "Monad is fast" */}
-      <motion.p
-        className="text-xs text-white/30 uppercase tracking-[0.4em] mb-8"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-      >
-        Chapter I
-      </motion.p>
-
-      <AnimatePresence>
-        {phase >= 0 && (
-          <motion.h2
-            className="text-3xl sm:text-5xl font-black text-white text-center z-10"
-            style={{ fontFamily: "var(--font-nunito), system-ui" }}
+      <AnimatePresence mode="wait">
+        {/* Beat 0: "Monad is fast." */}
+        {beat === 0 && (
+          <motion.div
+            key="beat0"
+            className="flex flex-col items-center z-10"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            exit={{ opacity: 0, y: -30 }}
+            transition={{ duration: 0.5 }}
           >
-            Monad is fast.
-          </motion.h2>
+            <h2
+              className="text-4xl sm:text-6xl font-black text-center"
+              style={{ fontFamily: "var(--font-nunito), system-ui", color: "#111" }}
+            >
+              Monad is fast.
+            </h2>
+            <p className="text-base sm:text-lg mt-4 text-center" style={{ color: "rgba(0,0,0,0.3)" }}>
+              Really, really fast.
+            </p>
+          </motion.div>
         )}
-      </AnimatePresence>
 
-      {/* Counter */}
-      <AnimatePresence>
-        {phase >= 1 && (
+        {/* Beat 1: Counter takes over the screen */}
+        {beat === 1 && (
           <motion.div
-            className="mt-8 flex items-baseline gap-3 z-10"
+            key="beat1"
+            className="flex flex-col items-center z-10"
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
             transition={{ type: "spring", stiffness: 200, damping: 15 }}
           >
-            <motion.span
-              className="text-5xl sm:text-7xl font-black text-white tabular-nums"
+            <p className="text-sm uppercase tracking-[0.3em] mb-4" style={{ color: "rgba(0,0,0,0.25)" }}>
+              transactions per second
+            </p>
+            <span
+              className="text-7xl sm:text-9xl font-black tabular-nums"
               style={{
                 fontFamily: "var(--font-nunito), system-ui",
-                letterSpacing: "-2px",
+                letterSpacing: "-3px",
+                color: "#111",
                 textShadow:
                   counter >= 10000
-                    ? "0 0 40px rgba(230,57,70,0.5)"
+                    ? "0 0 40px rgba(230,57,70,0.3)"
                     : "none",
               }}
             >
               {counter.toLocaleString()}
-            </motion.span>
-            <span className="text-xl sm:text-2xl text-white/40 font-bold">
-              🍕/s
             </span>
+            <p className="text-lg mt-2 font-bold" style={{ color: "rgba(0,0,0,0.2)" }}>
+              slices per second
+            </p>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      <AnimatePresence>
-        {phase >= 2 && (
-          <motion.p
-            className="text-sm sm:text-lg text-white/30 mt-4 text-center z-10"
-            initial={{ opacity: 0, y: 10 }}
+        {/* Beat 2: "Every tx goes somewhere" */}
+        {beat === 2 && (
+          <motion.div
+            key="beat2"
+            className="flex flex-col items-center z-10 px-4"
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -30 }}
             transition={{ duration: 0.5 }}
           >
-            Really, really fast.
-          </motion.p>
+            <h2
+              className="text-3xl sm:text-5xl font-black text-center leading-tight"
+              style={{ fontFamily: "var(--font-nunito), system-ui", color: "#111" }}
+            >
+              Every transaction lands
+              <br />
+              in a{" "}
+              <span style={{ color: "#E63946" }}>zone</span>
+            </h2>
+            <p className="text-base mt-4 text-center" style={{ color: "rgba(0,0,0,0.35)" }}>
+              DEX trades, lending, memes, infra, gaming
+            </p>
+          </motion.div>
         )}
-      </AnimatePresence>
 
-      <AnimatePresence>
-        {phase >= 3 && (
-          <motion.p
-            className="text-lg sm:text-2xl font-bold text-white/80 mt-10 text-center z-10"
+        {/* Beat 3: The question */}
+        {beat === 3 && (
+          <motion.div
+            key="beat3"
+            className="flex flex-col items-center z-10 px-4"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
           >
-            What if you could{" "}
-            <span
-              className="font-black"
-              style={{ color: "#E63946" }}
+            <h2
+              className="text-3xl sm:text-5xl font-black text-center leading-tight"
+              style={{ fontFamily: "var(--font-nunito), system-ui", color: "#111" }}
             >
-              bet
-            </span>{" "}
-            on where those transactions go? 🍕
-          </motion.p>
+              What if you could
+              <br />
+              <span style={{ color: "#E63946" }}>bet</span> on which zone
+              <br />
+              burns hottest?
+            </h2>
+          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
   );
 }
 
-// ─── Scene 3: Zones Reveal ──────────────────────────────────────────────────────
+// ─── Zone intro lines (talking slices) ───────────────────────────────────────────
+const ZONE_INTROS: Record<string, { line: string; vibe: string }> = {
+  pepperoni: { line: "I run the DEXs around here.", vibe: "Swaps, perps, all the action" },
+  mushroom: { line: "Slow and steady wins the yield.", vibe: "Lending, staking, compounding" },
+  pineapple: { line: "Controversial? I prefer legendary.", vibe: "Memecoins, launches, degen plays" },
+  olive: { line: "I keep the lights on.", vibe: "Oracles, bridges, infrastructure" },
+  anchovy: { line: "Underrated. Just watch.", vibe: "Gaming, social, AI, NFTs" },
+};
+
+// ─── Scene 3: Pizza Box Zones Reveal ─────────────────────────────────────────────
 function ZonesRevealScene() {
+  const [phase, setPhase] = useState<"box" | "open" | "slices" | "intros">("box");
+  const [activeSlice, setActiveSlice] = useState(-1);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase("open"), 800);
+    const t2 = setTimeout(() => setPhase("slices"), 1800);
+    const t3 = setTimeout(() => {
+      setPhase("intros");
+      setActiveSlice(0);
+    }, 2600);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "intros" || activeSlice < 0) return;
+    if (activeSlice >= ZONE_LIST.length - 1) return;
+    const t = setTimeout(() => setActiveSlice((s) => s + 1), 1800);
+    return () => clearTimeout(t);
+  }, [phase, activeSlice]);
+
   return (
     <motion.div
       {...pageTransition}
-      className="flex flex-col items-center justify-center h-full relative px-4"
+      className="flex flex-col items-center justify-center h-full relative px-4 overflow-hidden"
     >
-      <FloatingPizzas count={8} seed={200} />
+      <FloatingPizzas count={6} seed={200} />
 
-      <motion.p
-        className="text-xs text-white/30 uppercase tracking-[0.4em] mb-3 z-10"
+      {/* 3D Pizza box */}
+      <motion.div
+        className="relative z-10"
+        style={{ perspective: 900 }}
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{
+          scale: phase === "intros" ? 0.55 : 1,
+          opacity: 1,
+          y: phase === "intros" ? -25 : 0,
+        }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <motion.div
+          style={{ transformStyle: "preserve-3d", width: 280, height: 220 }}
+          animate={{
+            rotateX: 55,
+            rotateZ: -15,
+            rotateY: phase === "box" ? [0, 3, 0, -3, 0] : 0,
+          }}
+          transition={{
+            rotateY: phase === "box" ? { duration: 3, repeat: Infinity, ease: "easeInOut" } : { duration: 0.6 },
+            default: { duration: 0.6 },
+          }}
+        >
+          {/* ── Box base ── */}
+          <div
+            className="absolute"
+            style={{
+              width: 260,
+              height: 260,
+              left: 10,
+              top: -20,
+              background: "linear-gradient(135deg, #faf0e4 0%, #f0dfc5 100%)",
+              border: "2.5px solid #c49a5c",
+              borderRadius: 6,
+              boxShadow:
+                "inset 0 0 30px rgba(180,140,60,0.06), 0 20px 60px -10px rgba(0,0,0,0.18), 0 8px 20px -5px rgba(0,0,0,0.08)",
+            }}
+          >
+            {/* Grease ring */}
+            <div
+              className="absolute rounded-full"
+              style={{
+                width: 190,
+                height: 190,
+                top: 35,
+                left: 35,
+                background: "radial-gradient(circle, rgba(200,160,80,0.1) 0%, transparent 60%)",
+                border: "1px dashed rgba(180,140,60,0.12)",
+              }}
+            />
+          </div>
+
+          {/* ── Front edge (depth) ── */}
+          <div
+            className="absolute"
+            style={{
+              width: 260,
+              height: 22,
+              left: 10,
+              top: 240,
+              transformOrigin: "top left",
+              transform: "rotateX(-90deg)",
+              background: "linear-gradient(180deg, #dbb07a, #b8860b)",
+              borderLeft: "2.5px solid #c49a5c",
+              borderRight: "2.5px solid #c49a5c",
+              borderBottom: "2.5px solid #a07030",
+              borderRadius: "0 0 4px 4px",
+            }}
+          />
+
+          {/* ── Right edge (depth) ── */}
+          <div
+            className="absolute"
+            style={{
+              width: 22,
+              height: 260,
+              left: 270,
+              top: -20,
+              transformOrigin: "top left",
+              transform: "rotateY(90deg)",
+              background: "linear-gradient(-90deg, #c49352, #dbb07a)",
+              borderTop: "2.5px solid #c49a5c",
+              borderBottom: "2.5px solid #c49a5c",
+              borderRight: "2.5px solid #b8860b",
+              borderRadius: "0 4px 4px 0",
+            }}
+          />
+
+          {/* ── Lid (hinged at back) ── */}
+          <motion.div
+            className="absolute"
+            style={{
+              width: 260,
+              height: 260,
+              left: 10,
+              top: -20,
+              transformOrigin: "50% 0%",
+              transformStyle: "preserve-3d",
+              zIndex: phase === "box" ? 10 : 2,
+            }}
+            animate={{
+              rotateX: phase === "box" ? 0 : 88,
+            }}
+            transition={{ duration: 1.0, ease: [0.32, 0.72, 0, 1] }}
+          >
+            {/* Lid face */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: "linear-gradient(135deg, #e8c99b 0%, #dbb07a 100%)",
+                border: "2.5px solid #b8860b",
+                borderRadius: 6,
+                boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                backfaceVisibility: "hidden",
+              }}
+            >
+              <div className="flex items-center justify-center h-full">
+                <motion.div
+                  animate={phase === "box" ? { scale: [1, 1.04, 1] } : { scale: 0.6, opacity: 0 }}
+                  transition={phase === "box" ? { duration: 2.5, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/cheeznad.png"
+                    alt=""
+                    style={{ width: 140, height: 140, objectFit: "contain" }}
+                    draggable={false}
+                  />
+                </motion.div>
+              </div>
+            </div>
+
+            {/* Lid underside (visible when open) */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: "linear-gradient(135deg, #f5eadb, #ede0cc)",
+                border: "2.5px solid #c49a5c",
+                borderRadius: 6,
+                transform: "rotateY(180deg)",
+                backfaceVisibility: "hidden",
+              }}
+            />
+
+            {/* Lid bottom edge thickness */}
+            <div
+              className="absolute"
+              style={{
+                width: 260,
+                height: 5,
+                bottom: 0,
+                left: 0,
+                background: "linear-gradient(180deg, #d4a574, #b8860b)",
+                borderLeft: "2.5px solid #b8860b",
+                borderRight: "2.5px solid #b8860b",
+                borderBottom: "2px solid #a07030",
+                transformOrigin: "bottom center",
+                transform: "rotateX(-90deg)",
+              }}
+            />
+          </motion.div>
+        </motion.div>
+
+        {/* ── Slices (positioned flat on top of the visual box) ── */}
+        <div className="absolute inset-0" style={{ zIndex: 15 }}>
+          {ZONE_LIST.map((zone, i) => {
+            const popped = phase === "slices" || phase === "intros";
+            const isActive = phase === "intros" && activeSlice === i;
+            const isDone = phase === "intros" && activeSlice > i;
+            const ang = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+            const popDist = isActive ? 180 : popped ? 70 : 0;
+            const popX = Math.round(Math.cos(ang) * popDist);
+            const popY = Math.round(Math.sin(ang) * popDist * 0.55);
+
+            return (
+              <motion.div
+                key={zone.id}
+                className="absolute"
+                style={{
+                  left: "50%",
+                  top: "45%",
+                  marginLeft: -36,
+                  marginTop: -36,
+                  zIndex: isActive ? 30 : isDone ? 5 : 10,
+                }}
+                animate={{
+                  x: popX,
+                  y: popY - (isActive ? 40 : popped ? 5 : 0),
+                  scale: isActive ? 1.6 : isDone ? 0.5 : popped ? 0.75 : 0.4,
+                  opacity: isActive ? 1 : isDone ? 0.15 : popped ? 0.7 : 0,
+                  rotate: isActive ? [0, -12, 12, -5, 0] : 0,
+                }}
+                transition={
+                  isActive
+                    ? { type: "spring", stiffness: 400, damping: 14, rotate: { duration: 0.35 } }
+                    : { type: "spring", stiffness: 250, damping: 18, delay: popped && !isDone && !isActive ? i * 0.06 : 0 }
+                }
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={isActive ? zone.sliceImageHot : zone.sliceImage}
+                  alt={zone.topping}
+                  style={{
+                    width: 72,
+                    height: 72,
+                    filter: isActive
+                      ? `drop-shadow(0 10px 24px rgba(${zone.colorRgb}, 0.5))`
+                      : "drop-shadow(0 3px 6px rgba(0,0,0,0.1))",
+                  }}
+                  draggable={false}
+                />
+              </motion.div>
+            );
+          })}
+        </div>
+      </motion.div>
+
+      {/* Talking slice speech bubble */}
+      <div className="relative z-20 mt-6" style={{ height: 130 }}>
+        <AnimatePresence mode="wait">
+          {phase === "intros" && activeSlice >= 0 && activeSlice < ZONE_LIST.length && (
+            <motion.div
+              key={activeSlice}
+              className="flex flex-col items-center text-center"
+              initial={{ opacity: 0, y: 20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.95 }}
+              transition={{ duration: 0.25 }}
+            >
+              {/* Name */}
+              <p
+                className="text-2xl sm:text-3xl font-black"
+                style={{
+                  color: ZONE_LIST[activeSlice].color,
+                  fontFamily: "var(--font-nunito), system-ui",
+                }}
+              >
+                {ZONE_LIST[activeSlice].topping}
+              </p>
+
+              {/* Speech line */}
+              <p
+                className="text-base sm:text-lg font-bold mt-1"
+                style={{ color: "#111" }}
+              >
+                &ldquo;{ZONE_INTROS[ZONE_LIST[activeSlice].id].line}&rdquo;
+              </p>
+
+              {/* Vibe/description */}
+              <p
+                className="text-xs mt-1"
+                style={{ color: "rgba(0,0,0,0.35)" }}
+              >
+                {ZONE_INTROS[ZONE_LIST[activeSlice].id].vibe}
+              </p>
+
+              {/* Protocol tags */}
+              <div className="flex gap-2 mt-3 justify-center flex-wrap">
+                {ZONE_PROTOCOLS[ZONE_LIST[activeSlice].id].map((p, j) => (
+                  <motion.span
+                    key={p}
+                    className="text-[11px] px-3 py-1 rounded-full font-semibold"
+                    style={{
+                      background: `rgba(${ZONE_LIST[activeSlice].colorRgb}, 0.1)`,
+                      color: ZONE_LIST[activeSlice].color,
+                      border: `1px solid rgba(${ZONE_LIST[activeSlice].colorRgb}, 0.2)`,
+                    }}
+                    initial={{ opacity: 0, scale: 0, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ delay: 0.3 + j * 0.1, type: "spring", stiffness: 300, damping: 15 }}
+                  >
+                    {p}
+                  </motion.span>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Zone dots */}
+      <motion.div
+        className="flex items-center gap-2 z-10 mt-2"
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
+        animate={{ opacity: phase === "intros" ? 1 : 0 }}
+        transition={{ duration: 0.3 }}
       >
-        Chapter II
-      </motion.p>
-
-      <motion.h2
-        className="text-2xl sm:text-4xl font-black text-white mb-8 z-10 text-center"
-        style={{ fontFamily: "var(--font-nunito), system-ui" }}
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        5 zones. 5 toppings. One winner. 🍕
-      </motion.h2>
-
-      <div className="flex flex-wrap justify-center gap-3 max-w-xl z-10">
         {ZONE_LIST.map((zone, i) => (
           <motion.div
             key={zone.id}
-            className="flex items-center gap-3 px-5 py-3 rounded-2xl"
-            style={{
-              background: "#141414",
-              border: "2.5px solid #111",
-              minWidth: 200,
+            className="rounded-full"
+            animate={{
+              width: activeSlice === i ? 24 : 8,
+              height: 8,
+              background: activeSlice >= i ? zone.color : "rgba(0,0,0,0.1)",
             }}
-            initial={{ opacity: 0, x: i % 2 === 0 ? -120 : 120, scale: 0.8 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            transition={{
-              delay: 0.5 + i * 0.2,
-              type: "spring",
-              stiffness: 200,
-              damping: 18,
-            }}
-            whileHover={{ scale: 1.04, borderColor: zone.color }}
-          >
-            <span className="text-3xl">{zone.toppingEmoji}</span>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span
-                  className="text-sm font-bold"
-                  style={{ color: zone.color }}
-                >
-                  {zone.topping}
-                </span>
-                <span className="text-[10px]">🍕</span>
-              </div>
-              <p className="text-[11px] text-white/40">{zone.name}</p>
-              <div className="flex gap-1 mt-1">
-                {ZONE_PROTOCOLS[zone.id].map((p) => (
-                  <span
-                    key={p}
-                    className="text-[9px] px-1.5 py-0.5 rounded-full text-white/30"
-                    style={{ background: "rgba(255,255,255,0.05)" }}
-                  >
-                    {p}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Decorative pizza divider */}
-      <motion.div
-        className="flex items-center gap-2 mt-6 z-10"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.8 }}
-      >
-        {Array.from({ length: 5 }).map((_, i) => (
-          <motion.span
-            key={i}
-            className="text-lg"
-            animate={{ rotate: [0, 20, -20, 0] }}
-            transition={{
-              duration: 2,
-              delay: i * 0.2,
-              repeat: Infinity,
-              repeatDelay: 1,
-            }}
-          >
-            🍕
-          </motion.span>
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          />
         ))}
       </motion.div>
     </motion.div>
@@ -686,200 +946,146 @@ function PizzaPickerScene({
       {...pageTransition}
       className="flex flex-col items-center justify-center h-full px-4 relative"
     >
-      <FloatingPizzas count={14} seed={333} />
+      <FloatingPizzas count={8} seed={333} />
 
-      <motion.p
-        className="text-xs sm:text-sm text-white/40 uppercase tracking-[0.3em] mb-1 z-10"
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        🍕 5 zones battle every 3 minutes 🍕
-      </motion.p>
-
+      {/* Title */}
       <motion.h2
-        className="text-2xl sm:text-3xl font-bold text-white mb-2 z-10"
-        initial={{ opacity: 0, y: -10 }}
+        className="text-3xl sm:text-5xl font-black z-10 text-center mb-2"
+        style={{ fontFamily: "var(--font-nunito), system-ui", color: "#111" }}
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 15 }}
       >
         Pick your slice
       </motion.h2>
 
-      <motion.div
-        className="w-full flex-1 min-h-0 flex items-center justify-center z-10"
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{
-          delay: 0.3,
-          type: "spring",
-          stiffness: 200,
-          damping: 18,
-        }}
+      <motion.p
+        className="text-sm z-10 mb-8"
+        style={{ color: "rgba(0,0,0,0.3)" }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
       >
-        <svg
-          viewBox={`0 0 ${VB} ${VB}`}
-          className="max-h-[55vh] max-w-[90vw]"
-          style={{ overflow: "visible" }}
-        >
-          <defs>
-            <filter id="sliceGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
+        Which zone are you betting on?
+      </motion.p>
 
-          {/* Crust ring */}
-          <circle cx={PCX} cy={PCY} r={CRUST_R} fill="#8B6914" />
-          <circle cx={PCX} cy={PCY} r={CRUST_R - 5} fill="#C4943D" />
-          <circle cx={PCX} cy={PCY} r={CHEESE_R} fill="#D4A574" />
+      {/* Slice cards */}
+      <div className="flex flex-wrap justify-center gap-4 z-10 max-w-2xl px-4">
+        {ZONE_LIST.map((zone, i) => {
+          const sel = picked === zone.id;
+          const dim = picked !== null && !sel;
+          const hov = hovered === zone.id && !picked;
 
-          {/* Slices */}
-          {ZONE_LIST.map((zone, i) => {
-            const sel = picked === zone.id;
-            const dim = picked !== null && !sel;
-            const hov = hovered === zone.id && !picked;
-            const pv = slicePull(i, sel ? 14 : 0);
-            const emojiPos = sliceCenter(i, 0.52);
-
-            return (
-              <motion.g
-                key={zone.id}
-                animate={{ x: pv.x, y: pv.y }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          return (
+            <motion.button
+              key={zone.id}
+              className="relative flex flex-col items-center rounded-2xl px-5 py-4 cursor-pointer border-2 transition-colors"
+              style={{
+                background: sel ? `rgba(${zone.colorRgb}, 0.08)` : "#fff",
+                borderColor: sel ? zone.color : hov ? zone.color : "rgba(0,0,0,0.06)",
+                boxShadow: sel
+                  ? `0 8px 30px rgba(${zone.colorRgb}, 0.2), 0 2px 8px rgba(0,0,0,0.06)`
+                  : hov
+                  ? `0 6px 24px rgba(${zone.colorRgb}, 0.12), 0 2px 8px rgba(0,0,0,0.04)`
+                  : "0 2px 8px rgba(0,0,0,0.04)",
+                width: 130,
+                outline: "none",
+              }}
+              initial={{ opacity: 0, y: 30, scale: 0.8 }}
+              animate={{
+                opacity: dim ? 0.35 : 1,
+                y: 0,
+                scale: sel ? 1.08 : dim ? 0.95 : 1,
+              }}
+              whileHover={!picked ? { scale: 1.06, y: -4 } : undefined}
+              whileTap={!picked ? { scale: 0.97 } : undefined}
+              transition={{
+                delay: 0.2 + i * 0.08,
+                type: "spring",
+                stiffness: 250,
+                damping: 18,
+              }}
+              onClick={() => handlePick(zone)}
+              onMouseEnter={() => !picked && setHovered(zone.id)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              {/* Slice image */}
+              <motion.div
+                animate={sel ? { rotate: [0, -10, 10, -5, 0], scale: [1, 1.15, 1] } : {}}
+                transition={{ duration: 0.5 }}
               >
-                <motion.path
-                  d={makeSlicePath(i)}
-                  fill={zone.color}
-                  initial={{ fillOpacity: 0 }}
-                  animate={{
-                    fillOpacity: dim ? 0.1 : hov ? 1 : 0.7,
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={sel || hov ? zone.sliceImageHot : zone.sliceImage}
+                  alt={zone.topping}
+                  style={{
+                    width: 64,
+                    height: 64,
+                    filter: sel
+                      ? `drop-shadow(0 4px 12px rgba(${zone.colorRgb}, 0.4))`
+                      : "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
                   }}
-                  transition={{
-                    fillOpacity: { delay: 0.4 + i * 0.06, duration: 0.3 },
-                  }}
-                  stroke={sel ? "#fff" : "rgba(255,255,255,0.06)"}
-                  strokeWidth={sel ? 2.5 : 0.5}
-                  filter={sel ? "url(#sliceGlow)" : undefined}
-                  cursor={picked ? "default" : "pointer"}
-                  role="button"
-                  aria-label={`${zone.topping} - ${zone.name}`}
-                  tabIndex={0}
-                  onClick={() => handlePick(zone)}
-                  onMouseEnter={() => !picked && setHovered(zone.id)}
-                  onMouseLeave={() => setHovered(null)}
+                  draggable={false}
                 />
-                <text
-                  x={emojiPos.x}
-                  y={emojiPos.y}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontSize={28}
-                  style={{ pointerEvents: "none" }}
-                  opacity={dim ? 0.15 : 1}
-                >
-                  {zone.toppingEmoji}
-                </text>
-              </motion.g>
-            );
-          })}
+              </motion.div>
 
-          <circle
-            cx={PCX}
-            cy={PCY}
-            r={12}
-            fill="#C4943D"
-            stroke="#8B6914"
-            strokeWidth={1.5}
-          />
-
-          {/* Connector lines + labels */}
-          {ZONE_LIST.map((zone, i) => {
-            const lineStart = sliceCenter(i, CRUST_R / PIZZA_R + 0.05);
-            const lineEnd = sliceCenter(i, 1.28);
-            const labelPos = sliceCenter(i, 1.36);
-            const anchor = getAnchor(i);
-            const protocols = ZONE_PROTOCOLS[zone.id];
-            const sel = picked === zone.id;
-            const dim = picked !== null && !sel;
-            const pv = slicePull(i, sel ? 14 : 0);
-
-            return (
-              <motion.g
-                key={`label-${zone.id}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: dim ? 0.08 : 1, x: pv.x, y: pv.y }}
-                transition={{
-                  opacity: { delay: 0.7 + i * 0.05, duration: 0.4 },
-                  x: { type: "spring", stiffness: 300, damping: 20 },
-                  y: { type: "spring", stiffness: 300, damping: 20 },
-                }}
+              {/* Name */}
+              <p
+                className="text-sm font-black mt-2"
+                style={{ color: zone.color, fontFamily: "var(--font-nunito), system-ui" }}
               >
-                <line
-                  x1={lineStart.x}
-                  y1={lineStart.y}
-                  x2={lineEnd.x}
-                  y2={lineEnd.y}
-                  stroke={zone.color}
-                  strokeWidth={1}
-                  strokeOpacity={0.25}
-                  strokeDasharray="2 3"
-                />
-                <text
-                  x={labelPos.x}
-                  y={labelPos.y - 2}
-                  textAnchor={anchor}
-                  fill={zone.color}
-                  fontSize={12}
-                  fontWeight={700}
-                  fontFamily="var(--font-nunito), system-ui"
-                >
-                  {zone.topping}
-                </text>
-                {protocols.map((name, j) => (
-                  <text
-                    key={name}
-                    x={labelPos.x}
-                    y={labelPos.y + 13 + j * 13}
-                    textAnchor={anchor}
-                    fill="rgba(255,255,255,0.4)"
-                    fontSize={9.5}
-                    fontFamily="var(--font-inter), system-ui"
-                  >
-                    {name}
-                  </text>
-                ))}
-              </motion.g>
-            );
-          })}
-        </svg>
-      </motion.div>
+                {zone.topping}
+              </p>
 
-      <AnimatePresence>
-        {picked ? (
-          <motion.p
-            key="confirm"
-            className="text-sm font-bold text-white/70 tracking-widest uppercase py-2 z-10"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-          >
-            🍕 Nice pick. 🍕
-          </motion.p>
-        ) : (
-          <motion.p
-            key="hint"
-            className="text-[11px] text-white/25 tracking-wider py-2 z-10"
-            animate={{ opacity: [0.2, 0.5, 0.2] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            TAP A SLICE TO CONTINUE 🍕
-          </motion.p>
-        )}
-      </AnimatePresence>
+              {/* Category */}
+              <p className="text-[10px] mt-0.5" style={{ color: "rgba(0,0,0,0.35)" }}>
+                {zone.name}
+              </p>
+
+              {/* Selected check */}
+              {sel && (
+                <motion.div
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                  style={{ background: zone.color }}
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 12 }}
+                >
+                  ✓
+                </motion.div>
+              )}
+            </motion.button>
+          );
+        })}
+      </div>
+
+      {/* Bottom hint */}
+      <div className="z-10 mt-8">
+        <AnimatePresence mode="wait">
+          {picked ? (
+            <motion.p
+              key="confirm"
+              className="text-sm font-bold tracking-widest uppercase"
+              style={{ color: "rgba(0,0,0,0.5)" }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              Nice pick.
+            </motion.p>
+          ) : (
+            <motion.p
+              key="hint"
+              className="text-[11px] tracking-wider"
+              style={{ color: "rgba(0,0,0,0.2)" }}
+              animate={{ opacity: [0.2, 0.5, 0.2] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              TAP A SLICE TO CONTINUE
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 }
@@ -900,16 +1106,19 @@ function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
   const beats = [
     {
       icon: chosenZone.toppingEmoji,
+      image: chosenZone.sliceImage,
       text: "Pick your zone",
       sub: `You chose ${chosenZone.topping}`,
     },
     {
       icon: "💰",
+      image: null,
       text: "Place your bet",
       sub: "Wager MON on your pick",
     },
     {
       icon: "🏆",
+      image: null,
       text: "Win the pool",
       sub: "Highest on-chain activity wins",
     },
@@ -923,7 +1132,8 @@ function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
       <FloatingPizzas count={10} seed={500} />
 
       <motion.p
-        className="text-xs text-white/30 uppercase tracking-[0.4em] mb-3 z-10"
+        className="text-xs uppercase tracking-[0.4em] mb-3 z-10"
+        style={{ color: "rgba(0,0,0,0.25)" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -932,7 +1142,8 @@ function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
       </motion.p>
 
       <motion.p
-        className="text-xs text-white/40 uppercase tracking-[0.3em] mb-10 z-10"
+        className="text-xs uppercase tracking-[0.3em] mb-10 z-10"
+        style={{ color: "rgba(0,0,0,0.35)" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -958,8 +1169,7 @@ function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
                   damping: 20,
                 }}
               >
-                <motion.span
-                  className="text-4xl"
+                <motion.div
                   animate={
                     beat === i
                       ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }
@@ -971,8 +1181,13 @@ function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
                     repeatDelay: 0.8,
                   }}
                 >
-                  {b.icon}
-                </motion.span>
+                  {b.image ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={b.image} alt="" style={{ width: 48, height: 48 }} draggable={false} />
+                  ) : (
+                    <span className="text-4xl">{b.icon}</span>
+                  )}
+                </motion.div>
                 <div>
                   <p
                     className="text-xl sm:text-2xl font-bold"
@@ -980,12 +1195,14 @@ function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
                       color:
                         beat === i
                           ? chosenZone.color
-                          : "rgba(255,255,255,0.4)",
+                          : "rgba(0,0,0,0.3)",
                     }}
                   >
                     {b.text}
                   </p>
-                  <p className="text-xs text-white/30 mt-0.5">{b.sub}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(0,0,0,0.3)" }}>
+                    {b.sub}
+                  </p>
                 </div>
               </motion.div>
             )}
@@ -993,21 +1210,22 @@ function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
         ))}
       </div>
 
-      {/* Pizza decorations after beats */}
+      {/* Slice decorations after beats */}
       <motion.div
-        className="flex gap-2 mt-10 z-10"
+        className="flex gap-3 mt-10 z-10"
         initial={{ opacity: 0 }}
-        animate={{ opacity: 0.4 }}
+        animate={{ opacity: 0.5 }}
         transition={{ delay: 3 }}
       >
-        {Array.from({ length: 3 }).map((_, i) => (
-          <motion.span
-            key={i}
+        {ZONE_LIST.slice(0, 3).map((zone, i) => (
+          <motion.div
+            key={zone.id}
             animate={{ y: [0, -8, 0] }}
             transition={{ duration: 1.5, delay: i * 0.3, repeat: Infinity }}
           >
-            🍕
-          </motion.span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={zone.sliceImage} alt="" style={{ width: 28, height: 28 }} draggable={false} />
+          </motion.div>
         ))}
       </motion.div>
     </motion.div>
@@ -1034,36 +1252,41 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
     >
       <FloatingPizzas count={12} seed={777} />
 
-      {/* Pizza confetti on connect */}
+      {/* Slice confetti on connect */}
       {celebrated && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
-          {Array.from({ length: 25 }).map((_, i) => (
-            <motion.span
-              key={i}
-              className="absolute text-2xl"
-              style={{
-                left: `${seededRandom(i * 47 + 3) * 100}%`,
-                top: -30,
-              }}
-              animate={{
-                y: [0, typeof window !== "undefined" ? window.innerHeight : 800],
-                rotate: [0, seededRandom(i * 31) * 720 - 360],
-                opacity: [1, 0.6, 0],
-              }}
-              transition={{
-                duration: seededRandom(i * 19) * 2 + 2,
-                delay: seededRandom(i * 11) * 1,
-                ease: "easeOut",
-              }}
-            >
-              🍕
-            </motion.span>
-          ))}
+          {Array.from({ length: 25 }).map((_, i) => {
+            const imgIdx = Math.floor(seededRandom(i * 73) * ZONE_LIST.length);
+            return (
+              <motion.div
+                key={i}
+                className="absolute"
+                style={{
+                  left: `${seededRandom(i * 47 + 3) * 100}%`,
+                  top: -30,
+                }}
+                animate={{
+                  y: [0, 1000],
+                  rotate: [0, seededRandom(i * 31) * 720 - 360],
+                  opacity: [1, 0.6, 0],
+                }}
+                transition={{
+                  duration: seededRandom(i * 19) * 2 + 2,
+                  delay: seededRandom(i * 11) * 1,
+                  ease: "easeOut",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={ZONE_LIST[imgIdx].sliceImage} alt="" style={{ width: 36, height: 36 }} draggable={false} />
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
       <motion.p
-        className="text-xs text-white/30 uppercase tracking-[0.4em] mb-3 z-10"
+        className="text-xs uppercase tracking-[0.4em] mb-3 z-10"
+        style={{ color: "rgba(0,0,0,0.25)" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -1074,8 +1297,8 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
       {!isConnected ? (
         <>
           <motion.h2
-            className="text-2xl sm:text-4xl font-black text-white mb-3 text-center z-10"
-            style={{ fontFamily: "var(--font-nunito), system-ui" }}
+            className="text-2xl sm:text-4xl font-black mb-3 text-center z-10"
+            style={{ fontFamily: "var(--font-nunito), system-ui", color: "#111" }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -1084,7 +1307,8 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
           </motion.h2>
 
           <motion.p
-            className="text-sm text-white/30 mb-10 z-10"
+            className="text-sm mb-10 z-10"
+            style={{ color: "rgba(0,0,0,0.3)" }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
@@ -1119,26 +1343,14 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
                       onClick={openConnectModal}
                       className="relative px-10 py-4 rounded-2xl text-lg font-bold tracking-wider uppercase cursor-pointer"
                       style={{
-                        background: "#E63946",
+                        background: "#111",
                         color: "white",
-                        border: "2.5px solid rgba(255,255,255,0.1)",
-                        boxShadow:
-                          "0 0 40px rgba(230,57,70,0.4), 0 0 80px rgba(230,57,70,0.15)",
+                        border: "2.5px solid #111",
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
                       }}
-                      whileHover={{ scale: 1.06 }}
+                      whileHover={{ scale: 1.06, boxShadow: "0 6px 30px rgba(0,0,0,0.2)" }}
                       whileTap={{ scale: 0.96 }}
                     >
-                      <motion.span
-                        className="absolute inset-0 rounded-2xl pointer-events-none"
-                        animate={{
-                          boxShadow: [
-                            "0 0 20px rgba(230,57,70,0.3)",
-                            "0 0 50px rgba(230,57,70,0.6)",
-                            "0 0 20px rgba(230,57,70,0.3)",
-                          ],
-                        }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      />
                       🍕 Connect Wallet 🍕
                     </motion.button>
                   </div>
@@ -1148,7 +1360,8 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
           </motion.div>
 
           <motion.p
-            className="mt-8 text-[10px] text-white/15 tracking-widest uppercase z-10"
+            className="mt-8 text-[10px] tracking-widest uppercase z-10"
+            style={{ color: "rgba(0,0,0,0.15)" }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.2 }}
@@ -1159,8 +1372,8 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
       ) : (
         <>
           <motion.h2
-            className="text-2xl sm:text-4xl font-black text-white mb-4 text-center z-10"
-            style={{ fontFamily: "var(--font-nunito), system-ui" }}
+            className="text-2xl sm:text-4xl font-black mb-4 text-center z-10"
+            style={{ fontFamily: "var(--font-nunito), system-ui", color: "#111" }}
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 15 }}
@@ -1171,15 +1384,15 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
           <motion.div
             className="px-6 py-3 rounded-2xl z-10 flex items-center gap-3"
             style={{
-              background: "#141414",
-              border: "2.5px solid #222",
+              background: "#fff",
+              border: "2.5px solid #111",
             }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
             <span className="text-2xl">🍕</span>
-            <span className="text-white/60 text-sm font-mono">
+            <span className="text-sm font-mono" style={{ color: "rgba(0,0,0,0.5)" }}>
               {address
                 ? `${address.slice(0, 6)}...${address.slice(-4)}`
                 : ""}
@@ -1187,7 +1400,8 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
           </motion.div>
 
           <motion.p
-            className="text-sm text-white/30 mt-4 z-10"
+            className="text-sm mt-4 z-10"
+            style={{ color: "rgba(0,0,0,0.3)" }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
@@ -1256,7 +1470,7 @@ function LaunchCtaScene({ chosenZone }: { chosenZone: Zone }) {
           animate={{
             x: [0, p.x],
             y: [0, p.y],
-            opacity: [0, 0.6, 0],
+            opacity: [0, 0.4, 0],
             scale: [0, 1.5, 0],
           }}
           transition={{
@@ -1268,14 +1482,47 @@ function LaunchCtaScene({ chosenZone }: { chosenZone: Zone }) {
         />
       ))}
 
+      {/* Logo */}
+      <motion.div
+        className="z-10 mb-4"
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 15 }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/assets/cheeznad.png"
+          alt="Cheeznad"
+          style={{ width: 220, height: 220, objectFit: "contain" }}
+          draggable={false}
+        />
+      </motion.div>
+
       <motion.p
-        className="text-lg sm:text-xl text-white/60 font-medium mb-8 tracking-wide z-10"
+        className="text-lg sm:text-xl font-medium mb-8 tracking-wide z-10"
+        style={{ color: "rgba(0,0,0,0.5)" }}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
         🍕 The oven is hot. 🍕
       </motion.p>
+
+      {/* Chosen zone slice image */}
+      <motion.div
+        className="z-10 mb-6"
+        initial={{ opacity: 0, rotate: -30 }}
+        animate={{ opacity: 1, rotate: 0 }}
+        transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 15 }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={chosenZone.sliceImageHot}
+          alt={chosenZone.topping}
+          style={{ width: 80, height: 80 }}
+          draggable={false}
+        />
+      </motion.div>
 
       <motion.button
         onClick={enter}
@@ -1293,27 +1540,17 @@ function LaunchCtaScene({ chosenZone }: { chosenZone: Zone }) {
         style={{
           background: chosenZone.color,
           color: "white",
-          border: "2.5px solid rgba(255,255,255,0.1)",
+          border: "2.5px solid #111",
           fontFamily: "var(--font-nunito), system-ui",
-          boxShadow: `0 0 40px rgba(${chosenZone.colorRgb}, 0.4), 0 0 80px rgba(${chosenZone.colorRgb}, 0.15)`,
+          boxShadow: `0 4px 20px rgba(${chosenZone.colorRgb}, 0.3)`,
         }}
       >
-        <motion.span
-          className="absolute inset-0 rounded-2xl pointer-events-none"
-          animate={{
-            boxShadow: [
-              `0 0 20px rgba(${chosenZone.colorRgb}, 0.3)`,
-              `0 0 50px rgba(${chosenZone.colorRgb}, 0.6)`,
-              `0 0 20px rgba(${chosenZone.colorRgb}, 0.3)`,
-            ],
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
         🍕 Enter the Kitchen 🍕
       </motion.button>
 
       <motion.p
-        className="mt-6 text-[10px] text-white/20 tracking-widest uppercase z-10"
+        className="mt-6 text-[10px] tracking-widest uppercase z-10"
+        style={{ color: "rgba(0,0,0,0.2)" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.2 }}
@@ -1321,15 +1558,16 @@ function LaunchCtaScene({ chosenZone }: { chosenZone: Zone }) {
         or press Enter
       </motion.p>
 
-      {/* Giant background pizza */}
-      <motion.span
-        className="absolute text-[300px] z-0 select-none"
-        style={{ opacity: 0.03 }}
+      {/* Giant background slice */}
+      <motion.div
+        className="absolute z-0 select-none"
+        style={{ opacity: 0.05 }}
         animate={{ rotate: [0, 360] }}
         transition={{ duration: 80, repeat: Infinity, ease: "linear" }}
       >
-        🍕
-      </motion.span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/mushroom.png" alt="" style={{ width: 450, height: 450 }} draggable={false} />
+      </motion.div>
     </motion.div>
   );
 }
@@ -1415,12 +1653,14 @@ export default function StartPage() {
   return (
     <div
       className="fixed inset-0 z-[100] flex flex-col overflow-hidden"
-      style={{ background: "#0a0a0a" }}
+      style={{ background: "#f4f3ee" }}
     >
       {/* Skip button */}
       <motion.button
         onClick={handleSkip}
-        className="absolute top-5 right-6 z-50 text-[11px] text-white/25 hover:text-white/60 uppercase tracking-[0.2em] transition-colors cursor-pointer flex items-center gap-1.5"
+        className="absolute top-5 right-6 z-50 text-[11px] uppercase tracking-[0.2em] transition-colors cursor-pointer flex items-center gap-1.5"
+        style={{ color: "rgba(0,0,0,0.2)" }}
+        whileHover={{ color: "rgba(0,0,0,0.5)" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
@@ -1430,7 +1670,8 @@ export default function StartPage() {
 
       {/* Scene counter */}
       <motion.div
-        className="absolute top-5 left-6 z-50 text-[10px] text-white/15 uppercase tracking-widest font-mono"
+        className="absolute top-5 left-6 z-50 text-[10px] uppercase tracking-widest font-mono"
+        style={{ color: "rgba(0,0,0,0.15)" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}

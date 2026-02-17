@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Zone, ZoneActivity, ZoneId } from "@/types";
 import { useGameStore } from "@/store/useGameStore";
 import { ZONE_IDS } from "@/lib/zones";
+import { useContractPool } from "@/hooks/useContractPool";
 
 interface ZoneRowProps {
   zone: Zone;
@@ -19,18 +20,12 @@ export default function ZoneRow({
   rank,
 }: ZoneRowProps) {
   const zones = useGameStore((s) => s.zones);
+  const { zonePercentages } = useContractPool();
   const [isHovered, setIsHovered] = useState(false);
 
   const isHot = activity.heatLevel === "hot" || activity.heatLevel === "onfire";
 
-  const totalWeighted = ZONE_IDS.reduce(
-    (sum, zid) => sum + zones[zid].weightedScore,
-    0
-  );
-  const winChance =
-    totalWeighted > 0
-      ? Math.round((activity.weightedScore / totalWeighted) * 1000) / 10
-      : 0;
+  const winChance = zonePercentages[zone.id] ?? 0;
 
   const heatClass = `heat-${activity.heatLevel}`;
 
