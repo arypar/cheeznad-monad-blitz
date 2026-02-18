@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
+import { parseEther } from "viem";
 import { useGameStore } from "@/store/useGameStore";
 import { ZONES } from "@/lib/zones";
+import { CHEEZNAD_ADDRESS, cheeznadAbi, ZONE_TO_ENUM } from "@/lib/cheeznadAbi";
 import type { ZoneId } from "@/types";
 
 interface SimpleBetModalProps {
@@ -12,20 +15,53 @@ interface SimpleBetModalProps {
 }
 
 export default function SimpleBetModal({ isOpen, onClose, zoneId }: SimpleBetModalProps) {
-  const placeBet = useGameStore((s) => s.placeBet);
   const isResolving = useGameStore((s) => s.isResolving);
   const zoneActivity = useGameStore((s) => zoneId ? s.zones[zoneId] : null);
   const [amount, setAmount] = useState("0.5");
+
+  const { isConnected } = useAccount();
+
+  const {
+    writeContract,
+    data: txHash,
+    isPending: isSending,
+    reset: resetTx,
+    error: writeError,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
   const zone = zoneId ? ZONES[zoneId] : null;
   const amtNum = parseFloat(amount) || 0;
   const multiplier = zoneActivity?.multiplier ?? 1.0;
 
+  useEffect(() => {
+    if (isConfirmed) {
+      const timer = setTimeout(() => {
+        onClose();
+        resetTx();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isConfirmed, onClose, resetTx]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetTx();
+    }
+  }, [isOpen, resetTx]);
+
   const handlePlaceBet = useCallback(() => {
-    if (isResolving || amtNum <= 0 || !zoneId) return;
-    placeBet(zoneId, amtNum);
-    onClose();
-  }, [isResolving, amtNum, zoneId, placeBet, onClose]);
+    if (isResolving || amtNum <= 0 || !zoneId || !isConnected) return;
+    writeContract({
+      address: CHEEZNAD_ADDRESS,
+      abi: cheeznadAbi,
+      functionName: "deposit",
+      args: [ZONE_TO_ENUM[zoneId]],
+      value: parseEther(amount),
+    });
+  }, [isResolving, amtNum, zoneId, isConnected, writeContract, amount]);
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent) => {
@@ -84,11 +120,29 @@ export default function SimpleBetModal({ isOpen, onClose, zoneId }: SimpleBetMod
           <button
             className="modal-buy"
             onClick={handlePlaceBet}
-            disabled={isResolving || amtNum <= 0}
+            disabled={isResolving || amtNum <= 0 || !isConnected || isSending || isConfirming}
           >
-            Place Bet
+            {!isConnected
+              ? "Connect Wallet"
+              : isSending
+              ? "Confirm in Wallet..."
+              : isConfirming
+              ? "Confirming..."
+              : isConfirmed
+              ? "Deposited!"
+              : "Buy In"}
           </button>
         </div>
+
+        {writeError && (
+          <div className="modal-error" style={{ color: "#ef4444", fontSize: "0.8rem", textAlign: "center", marginTop: "0.5rem" }}>
+            {writeError.message.includes("User rejected")
+              ? "Transaction rejected"
+              : writeError.message.includes("Betting window")
+              ? "Betting window is closed"
+              : "Transaction failed"}
+          </div>
+        )}
 
         <div className="quick-row">
           <button className="quick-btn" onClick={() => setAmount("0.1")}>0.1</button>

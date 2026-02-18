@@ -60,6 +60,20 @@ const cheeznadAbi = [
     ],
     outputs: [],
   },
+  {
+    name: "resetRound",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: "getZoneTotal",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_zone", type: "uint8" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
 ] as const;
 
 function getClients() {
@@ -92,6 +106,19 @@ export async function distributeWinnings(winner: ZoneId): Promise<void> {
 
   const { publicClient, walletClient, account } = getClients();
 
+  async function hasDeposits(): Promise<boolean> {
+    for (let i = 0; i < 5; i++) {
+      const total = await publicClient.readContract({
+        address: CHEEZNAD_ADDRESS,
+        abi: cheeznadAbi,
+        functionName: "getZoneTotal",
+        args: [i],
+      });
+      if ((total as bigint) > BigInt(0)) return true;
+    }
+    return false;
+  }
+
   async function tryDistribute(): Promise<boolean> {
     const phase = await publicClient.readContract({
       address: CHEEZNAD_ADDRESS,
@@ -103,6 +130,32 @@ export async function distributeWinnings(winner: ZoneId): Promise<void> {
 
     if (phase !== "COMPLETE") {
       return false;
+    }
+
+    const deposits = await hasDeposits();
+
+    if (!deposits) {
+      console.log(
+        `[distributor] no deposits in any zone — calling resetRound() to start fresh`
+      );
+
+      const txHash = await walletClient.writeContract({
+        address: CHEEZNAD_ADDRESS,
+        abi: cheeznadAbi,
+        functionName: "resetRound",
+      });
+
+      console.log(`[distributor] resetRound tx sent: ${txHash}`);
+
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      });
+
+      console.log(
+        `[distributor] resetRound confirmed in block ${receipt.blockNumber} (status: ${receipt.status})`
+      );
+
+      return true;
     }
 
     console.log(
@@ -137,7 +190,7 @@ export async function distributeWinnings(winner: ZoneId): Promise<void> {
     console.error("[distributor] initial attempt failed:", err);
   }
 
-  // Poll every 60 seconds until the contract is ready
+  // Poll until the contract is ready
   return new Promise<void>((resolve) => {
     const interval = setInterval(async () => {
       try {
@@ -147,9 +200,7 @@ export async function distributeWinnings(winner: ZoneId): Promise<void> {
           resolve();
         }
       } catch (err) {
-        console.error("[distributor] poll attempt failed:", err);
-        clearInterval(interval);
-        resolve();
+        console.error("[distributor] poll attempt failed, will retry:", err);
       }
     }, POLL_INTERVAL_MS);
   });
