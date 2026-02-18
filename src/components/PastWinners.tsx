@@ -39,9 +39,6 @@ export default function PastWinners() {
               </div>
               <div className="winner-round">Round #{result.roundId}</div>
               <div className="winner-time">{getTimeAgo(result.timestamp)}</div>
-              {result.totalPool > 0 && (
-                <div className="winner-pool">{result.totalPool.toFixed(1)} <span>MON</span></div>
-              )}
             </div>
           );
         })}
