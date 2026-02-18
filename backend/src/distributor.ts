@@ -10,7 +10,7 @@ import type { ZoneId } from "./types.js";
 
 const CHEEZNAD_ADDRESS = "0x0606a92d01845B04A1C4F5cf788247FB4A14fd58" as const;
 
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 20_000;
 
 const ZONE_TO_ENUM: Record<ZoneId, number> = {
   pepperoni: 0,
