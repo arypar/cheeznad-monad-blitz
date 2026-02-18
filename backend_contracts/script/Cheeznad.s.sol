@@ -12,7 +12,7 @@ contract CheeznadScript is Script {
 
         address oracle = msg.sender;
         
-        Cheeznad cheeznad = new Cheeznad(oracle);
+        Cheeznad cheeznad = new Cheeznad();
         
         console.log("Cheeznad deployed at:", address(cheeznad));
         console.log("Oracle set to:", oracle);
