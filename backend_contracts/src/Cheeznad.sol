@@ -35,8 +35,8 @@ contract Cheeznad {
         _;
     }
     
-    constructor(address _oracle) {
-        oracle = _oracle;
+    constructor() {
+        oracle = msg.sender;
         roundStartTime = block.timestamp;
         lastDistributionTime = block.timestamp;
         emit RoundStarted(roundStartTime);
@@ -65,23 +65,55 @@ contract Cheeznad {
         require(canDistribute(), "Round not ready for distribution");
 
         uint256 totalFunds = address(this).balance;
-        require(totalFunds > 0, "No funds to distribute");
         
-        ZoneInfo storage winningZone = zones[_winningZone];
-        require(winningZone.totalDeposited > 0, "Winning zone has no deposits");
-        
-        // Distribute proportionally to depositors in winning zone
-        for (uint256 i = 0; i < winningZone.depositorCount; i++) {
-            address depositor = winningZone.indexToDepositor[i];
-            uint256 userDeposit = winningZone.userDeposits[depositor];
+        if (totalFunds > 0) {
+            ZoneInfo storage winningZone = zones[_winningZone];
             
-            if (userDeposit > 0) {
-                uint256 userShare = (totalFunds * userDeposit) / winningZone.totalDeposited;
+            if (winningZone.totalDeposited > 0) {
+                // Normal distribution: winning zone has depositors
+                for (uint256 i = 0; i < winningZone.depositorCount; i++) {
+                    address depositor = winningZone.indexToDepositor[i];
+                    uint256 userDeposit = winningZone.userDeposits[depositor];
+                    
+                    if (userDeposit > 0) {
+                        uint256 userShare = (totalFunds * userDeposit) / winningZone.totalDeposited;
 
-                (bool success, ) = depositor.call{value: userShare}("");
-                require(success, "Transfer failed");
+                        (bool success, ) = depositor.call{value: userShare}("");
+                        require(success, "Transfer failed");
+                    }
+                }
+            } else {
+                // Refund scenario: winning zone has no depositors, return original deposits
+                for (uint256 zoneId = 0; zoneId < 5; zoneId++) {
+                    Zone zone = Zone(zoneId);
+                    ZoneInfo storage zoneInfo = zones[zone];
+                    
+                    for (uint256 i = 0; i < zoneInfo.depositorCount; i++) {
+                        address depositor = zoneInfo.indexToDepositor[i];
+                        uint256 userDeposit = zoneInfo.userDeposits[depositor];
+                        
+                        if (userDeposit > 0) {
+                            (bool success, ) = depositor.call{value: userDeposit}("");
+                            require(success, "Refund failed");
+                        }
+                    }
+                }
             }
         }
+        
+        // Reset all zones for next round (regardless of funds)
+        _resetAllZones();
+        
+        // Start new round
+        roundStartTime = block.timestamp;
+        lastDistributionTime = block.timestamp;
+        
+        emit Distribution(_winningZone, totalFunds, block.timestamp);
+        emit RoundStarted(roundStartTime);
+    }
+    
+    function resetRound() external {
+        require(canDistribute(), "Round not ready for reset");
         
         // Reset all zones for next round
         _resetAllZones();
@@ -90,7 +122,6 @@ contract Cheeznad {
         roundStartTime = block.timestamp;
         lastDistributionTime = block.timestamp;
         
-        emit Distribution(_winningZone, totalFunds, block.timestamp);
         emit RoundStarted(roundStartTime);
     }
     
