@@ -7,6 +7,8 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { ZONE_LIST } from "@/lib/zones";
 import { Zone } from "@/types";
+import { useSynthBeats } from "@/hooks/useSynthBeats";
+import type { SynthEngine } from "@/lib/synthBeats";
 
 // ─── Scene definitions ──────────────────────────────────────────────────────────
 type Scene =
@@ -30,7 +32,7 @@ const SCENES: Scene[] = [
 
 const SCENE_DURATIONS: Record<Scene, number | null> = {
   titleDrop: 4000,
-  theHook: 11000,
+  theHook: 8500,
   zonesReveal: 13000,
   pizzaPicker: null,
   howItWorks: 5000,
@@ -259,20 +261,26 @@ function NavHint({ canGoBack, canGoForward }: { canGoBack: boolean; canGoForward
 }
 
 // ─── Scene 1: Title Drop ────────────────────────────────────────────────────────
-function TitleDropScene() {
+function TitleDropScene({ engine }: { engine: SynthEngine }) {
   const [phase, setPhase] = useState<"pre" | "slam" | "shake" | "settled">("pre");
 
   useEffect(() => {
-    // Kick off the slam immediately
-    const t0 = requestAnimationFrame(() => setPhase("slam"));
-    const t1 = setTimeout(() => setPhase("shake"), 600);
+    engine.whoosh();
+    const t0 = requestAnimationFrame(() => {
+      setPhase("slam");
+      engine.kick();
+    });
+    const t1 = setTimeout(() => {
+      setPhase("shake");
+      engine.hihat();
+    }, 600);
     const t2 = setTimeout(() => setPhase("settled"), 1100);
     return () => {
       cancelAnimationFrame(t0);
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const orbitSlices = useMemo(
     () =>
@@ -439,17 +447,17 @@ function TitleDropScene() {
 }
 
 // ─── Scene 2: The Hook (sequential story) ───────────────────────────────────────
-function TheHookScene() {
+function TheHookScene({ engine }: { engine: SynthEngine }) {
   const [beat, setBeat] = useState(0);
   const [counter, setCounter] = useState(0);
   const counterRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setBeat(1), 2500);
-    const t2 = setTimeout(() => setBeat(2), 6500);
-    const t3 = setTimeout(() => setBeat(3), 9000);
+    const t1 = setTimeout(() => { setBeat(1); engine.hihat(); engine.rise(2500); }, 1800);
+    const t2 = setTimeout(() => { setBeat(2); engine.hihat(); }, 4500);
+    const t3 = setTimeout(() => { setBeat(3); engine.pop(500); }, 6500);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (beat === 1 && !counterRef.current) {
@@ -592,25 +600,33 @@ const ZONE_INTROS: Record<string, { line: string; vibe: string }> = {
   anchovy: { line: "Underrated. Just watch.", vibe: "Gaming, social, AI, NFTs" },
 };
 
+// ─── Zone pop frequencies (one per zone for musical variety) ─────────────────────
+const ZONE_POP_FREQ = [330, 440, 523, 587, 660]; // E4, A4, C5, D5, E5
+
 // ─── Scene 3: Pizza Box Zones Reveal ─────────────────────────────────────────────
-function ZonesRevealScene() {
+function ZonesRevealScene({ engine }: { engine: SynthEngine }) {
   const [phase, setPhase] = useState<"box" | "open" | "slices" | "intros">("box");
   const [activeSlice, setActiveSlice] = useState(-1);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("open"), 800);
-    const t2 = setTimeout(() => setPhase("slices"), 1800);
+    const t1 = setTimeout(() => { setPhase("open"); engine.whoosh(); }, 800);
+    const t2 = setTimeout(() => { setPhase("slices"); engine.hihat(); }, 1800);
     const t3 = setTimeout(() => {
       setPhase("intros");
       setActiveSlice(0);
+      engine.pop(ZONE_POP_FREQ[0]);
     }, 2600);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (phase !== "intros" || activeSlice < 0) return;
     if (activeSlice >= ZONE_LIST.length - 1) return;
-    const t = setTimeout(() => setActiveSlice((s) => s + 1), 1800);
+    const nextIdx = activeSlice + 1;
+    const t = setTimeout(() => {
+      setActiveSlice(nextIdx);
+      engine.pop(ZONE_POP_FREQ[nextIdx] || 440);
+    }, 1800);
     return () => clearTimeout(t);
   }, [phase, activeSlice]);
 
@@ -792,7 +808,7 @@ function ZonesRevealScene() {
             const isActive = phase === "intros" && activeSlice === i;
             const isDone = phase === "intros" && activeSlice > i;
             const ang = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-            const popDist = isActive ? 180 : popped ? 70 : 0;
+            const popDist = isActive ? 220 : popped ? 90 : 0;
             const popX = Math.round(Math.cos(ang) * popDist);
             const popY = Math.round(Math.sin(ang) * popDist * 0.55);
 
@@ -803,14 +819,14 @@ function ZonesRevealScene() {
                 style={{
                   left: "50%",
                   top: "45%",
-                  marginLeft: -36,
-                  marginTop: -36,
+                  marginLeft: -60,
+                  marginTop: -60,
                   zIndex: isActive ? 30 : isDone ? 5 : 10,
                 }}
                 animate={{
                   x: popX,
-                  y: popY - (isActive ? 40 : popped ? 5 : 0),
-                  scale: isActive ? 1.6 : isDone ? 0.5 : popped ? 0.75 : 0.4,
+                  y: popY - (isActive ? 50 : popped ? 5 : 0),
+                  scale: isActive ? 1.8 : isDone ? 0.5 : popped ? 0.85 : 0.35,
                   opacity: isActive ? 1 : isDone ? 0.15 : popped ? 0.7 : 0,
                   rotate: isActive ? [0, -12, 12, -5, 0] : 0,
                 }}
@@ -825,11 +841,11 @@ function ZonesRevealScene() {
                   src={isActive ? zone.sliceImageHot : zone.sliceImage}
                   alt={zone.topping}
                   style={{
-                    width: 72,
-                    height: 72,
+                    width: 120,
+                    height: 120,
                     filter: isActive
-                      ? `drop-shadow(0 10px 24px rgba(${zone.colorRgb}, 0.5))`
-                      : "drop-shadow(0 3px 6px rgba(0,0,0,0.1))",
+                      ? `drop-shadow(0 12px 30px rgba(${zone.colorRgb}, 0.5))`
+                      : "drop-shadow(0 4px 8px rgba(0,0,0,0.1))",
                   }}
                   draggable={false}
                 />
@@ -929,8 +945,10 @@ function ZonesRevealScene() {
 // ─── Scene 4: Pizza Picker (Interactive) ────────────────────────────────────────
 function PizzaPickerScene({
   onSelect,
+  engine,
 }: {
   onSelect: (zone: Zone) => void;
+  engine: SynthEngine;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -938,6 +956,7 @@ function PizzaPickerScene({
   const handlePick = (zone: Zone) => {
     if (picked) return;
     setPicked(zone.id);
+    engine.chord([262, 330, 392, 523]);
     setTimeout(() => onSelect(zone), 1200);
   };
 
@@ -1006,7 +1025,7 @@ function PizzaPickerScene({
                 damping: 18,
               }}
               onClick={() => handlePick(zone)}
-              onMouseEnter={() => !picked && setHovered(zone.id)}
+              onMouseEnter={() => { if (!picked) { setHovered(zone.id); engine.blip(); } }}
               onMouseLeave={() => setHovered(null)}
             >
               {/* Slice image */}
@@ -1091,17 +1110,18 @@ function PizzaPickerScene({
 }
 
 // ─── Scene 5: How It Works ──────────────────────────────────────────────────────
-function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
+function HowItWorksScene({ chosenZone, engine }: { chosenZone: Zone; engine: SynthEngine }) {
   const [beat, setBeat] = useState(0);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setBeat(1), 1200);
-    const t2 = setTimeout(() => setBeat(2), 2400);
+    engine.pop(350);
+    const t1 = setTimeout(() => { setBeat(1); engine.pop(440); }, 1200);
+    const t2 = setTimeout(() => { setBeat(2); engine.pop(523); }, 2400);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const beats = [
     {
@@ -1233,17 +1253,18 @@ function HowItWorksScene({ chosenZone }: { chosenZone: Zone }) {
 }
 
 // ─── Scene 6: Connect Wallet ────────────────────────────────────────────────────
-function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
+function ConnectWalletScene({ onConnected, engine }: { onConnected: () => void; engine: SynthEngine }) {
   const { isConnected, address } = useAccount();
   const [celebrated, setCelebrated] = useState(false);
 
   useEffect(() => {
     if (isConnected && !celebrated) {
       setCelebrated(true);
+      engine.arpeggio();
       const timer = setTimeout(() => onConnected(), 2000);
       return () => clearTimeout(timer);
     }
-  }, [isConnected, celebrated, onConnected]);
+  }, [isConnected, celebrated, onConnected, engine]);
 
   return (
     <motion.div
@@ -1415,12 +1436,16 @@ function ConnectWalletScene({ onConnected }: { onConnected: () => void }) {
 }
 
 // ─── Scene 7: Launch CTA ────────────────────────────────────────────────────────
-function LaunchCtaScene({ chosenZone }: { chosenZone: Zone }) {
+function LaunchCtaScene({ chosenZone, engine }: { chosenZone: Zone; engine: SynthEngine }) {
   const router = useRouter();
 
   const enter = useCallback(() => {
     router.push("/");
   }, [router]);
+
+  useEffect(() => {
+    engine.chord([262, 330, 392, 523, 659]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1576,12 +1601,21 @@ function LaunchCtaScene({ chosenZone }: { chosenZone: Zone }) {
 export default function StartPage() {
   const router = useRouter();
   const { isConnected } = useAccount();
+  const engine = useSynthBeats();
   const [sceneIndex, setSceneIndex] = useState(0);
   const [chosenZone, setChosenZone] = useState<Zone>(ZONE_LIST[0]);
   const [pickerDone, setPickerDone] = useState(false);
   const [walletDone, setWalletDone] = useState(false);
+  const [muted, setMuted] = useState(false);
 
   const scene = SCENES[sceneIndex];
+
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      engine.setMuted(!m);
+      return !m;
+    });
+  }, [engine]);
 
   const canAdvance = useCallback(() => {
     if (scene === "pizzaPicker" && !pickerDone) return false;
@@ -1592,12 +1626,14 @@ export default function StartPage() {
   const canGoBack = sceneIndex > 0;
 
   const advance = useCallback(() => {
+    engine.kick();
     setSceneIndex((prev) => Math.min(prev + 1, SCENES.length - 1));
-  }, []);
+  }, [engine]);
 
   const goBack = useCallback(() => {
+    engine.kick();
     setSceneIndex((prev) => Math.max(prev - 1, 0));
-  }, []);
+  }, [engine]);
 
   // Auto-advance for timed scenes
   useEffect(() => {
@@ -1668,37 +1704,52 @@ export default function StartPage() {
         Skip 🍕
       </motion.button>
 
-      {/* Scene counter */}
-      <motion.div
-        className="absolute top-5 left-6 z-50 text-[10px] uppercase tracking-widest font-mono"
-        style={{ color: "rgba(0,0,0,0.15)" }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-      >
-        {sceneIndex + 1}/{SCENES.length}
-      </motion.div>
+      {/* Scene counter + mute toggle */}
+      <div className="absolute top-5 left-6 z-50 flex items-center gap-3">
+        <motion.div
+          className="text-[10px] uppercase tracking-widest font-mono"
+          style={{ color: "rgba(0,0,0,0.15)" }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+        >
+          {sceneIndex + 1}/{SCENES.length}
+        </motion.div>
+        <motion.button
+          onClick={toggleMute}
+          className="text-sm cursor-pointer"
+          style={{ color: "rgba(0,0,0,0.25)" }}
+          whileHover={{ color: "rgba(0,0,0,0.5)" }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+          title={muted ? "Unmute" : "Mute"}
+        >
+          {muted ? "🔇" : "🔊"}
+        </motion.button>
+      </div>
 
       {/* Screen content */}
       <div className="flex-1 relative">
         <AnimatePresence mode="wait">
-          {scene === "titleDrop" && <TitleDropScene key="titleDrop" />}
-          {scene === "theHook" && <TheHookScene key="theHook" />}
-          {scene === "zonesReveal" && <ZonesRevealScene key="zonesReveal" />}
+          {scene === "titleDrop" && <TitleDropScene key="titleDrop" engine={engine} />}
+          {scene === "theHook" && <TheHookScene key="theHook" engine={engine} />}
+          {scene === "zonesReveal" && <ZonesRevealScene key="zonesReveal" engine={engine} />}
           {scene === "pizzaPicker" && (
-            <PizzaPickerScene key="pizzaPicker" onSelect={handleZoneSelect} />
+            <PizzaPickerScene key="pizzaPicker" onSelect={handleZoneSelect} engine={engine} />
           )}
           {scene === "howItWorks" && (
-            <HowItWorksScene key="howItWorks" chosenZone={chosenZone} />
+            <HowItWorksScene key="howItWorks" chosenZone={chosenZone} engine={engine} />
           )}
           {scene === "connectWallet" && (
             <ConnectWalletScene
               key="connectWallet"
               onConnected={handleWalletConnected}
+              engine={engine}
             />
           )}
           {scene === "launchCta" && (
-            <LaunchCtaScene key="launchCta" chosenZone={chosenZone} />
+            <LaunchCtaScene key="launchCta" chosenZone={chosenZone} engine={engine} />
           )}
         </AnimatePresence>
       </div>

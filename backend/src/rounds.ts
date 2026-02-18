@@ -1,5 +1,6 @@
 import { config } from "./config.js";
 import { getSupabase } from "./supabase.js";
+import { distributeWinnings } from "./distributor.js";
 import type { ZoneId, ZoneScore } from "./types.js";
 
 const ALL_ZONES: ZoneId[] = ["pepperoni", "mushroom", "pineapple", "olive", "anchovy"];
@@ -299,6 +300,10 @@ async function endRound(): Promise<void> {
     winner,
     scores,
   });
+
+  distributeWinnings(winner).catch((err) =>
+    console.error("[distributor] failed:", err)
+  );
 
   setTimeout(() => startRound(), 4000);
 }

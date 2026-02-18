@@ -1,5 +1,5 @@
 export const CHEEZNAD_ADDRESS =
-  "0xb7EfC1264a4f6a13E0651B262474B42B67E69a16" as const;
+  "0x0606a92d01845B04A1C4F5cf788247FB4A14fd58" as const;
 
 export const cheeznadAbi = [
   {

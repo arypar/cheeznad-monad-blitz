@@ -22,7 +22,7 @@ contract Cheeznad {
     address public oracle;
     uint256 public lastDistributionTime;
     uint256 public roundStartTime;
-    uint256 public constant ROUND_DURATION = 180; // 3 minutes total
+    uint256 public constant ROUND_DURATION = 120; // 2 minutes total
     uint256 public constant BETTING_DURATION = 60; // 1 minute betting window
     
     event Deposit(address indexed user, Zone indexed zone, uint256 amount);

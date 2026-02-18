@@ -16,7 +16,7 @@ export default function BottomRow() {
   const bettingEndTime = useGameStore((s) => s.bettingEndTime);
   const isBettingOpen = useGameStore((s) => s.isBettingOpen);
   const roundId = useGameStore((s) => s.roundId);
-  const [roundTimeLeft, setRoundTimeLeft] = useState(180);
+  const [roundTimeLeft, setRoundTimeLeft] = useState(120);
   const [bettingTimeLeft, setBettingTimeLeft] = useState(60);
 
   useEffect(() => {

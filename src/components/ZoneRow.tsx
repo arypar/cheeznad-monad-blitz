@@ -177,12 +177,14 @@ function BlockSparkline({
   }
 
   // Compute global max across ALL zones so heights are comparable
+  // Cap at 10 so huge batches don't dwarf single-tx bars
   let globalMax = 1;
   for (const zid of ZONE_IDS) {
     for (const bp of blockHistoryAll[zid]) {
       if (bp.count > globalMax) globalMax = bp.count;
     }
   }
+  globalMax = Math.min(globalMax, 10);
 
   const lastBlockNum = recentBlocks[recentBlocks.length - 1];
 
