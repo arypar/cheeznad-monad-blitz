@@ -17,7 +17,7 @@ let wss: WebSocketServer | null = null;
 
 function handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
@@ -38,6 +38,29 @@ function handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
     });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(body);
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/rpc") {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", async () => {
+      try {
+        const body = Buffer.concat(chunks).toString();
+        const rpcRes = await fetch(config.monadRpcHttp, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+        const rpcBody = await rpcRes.text();
+        res.writeHead(rpcRes.status, { "Content-Type": "application/json" });
+        res.end(rpcBody);
+      } catch (err) {
+        console.error("[rpc-proxy] error:", err);
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "RPC proxy error" }));
+      }
+    });
     return;
   }
 

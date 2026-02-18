@@ -1,5 +1,7 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { defineChain } from "viem";
+import { defineChain, http } from "viem";
+
+const rpcProxyUrl = process.env.NEXT_PUBLIC_RPC_PROXY_URL || "https://testnet-rpc.monad.xyz";
 
 export const monadTestnet = defineChain({
   id: 10143,
@@ -11,8 +13,7 @@ export const monadTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ["https://testnet-rpc.monad.xyz"],
-      webSocket: ["wss://testnet-rpc.monad.xyz"],
+      http: [rpcProxyUrl],
     },
   },
   blockExplorers: {
@@ -33,5 +34,8 @@ export const wagmiConfig = getDefaultConfig({
   appName: "Pizza Wars",
   projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID || "demo",
   chains: [monadTestnet],
+  transports: {
+    [monadTestnet.id]: http(rpcProxyUrl),
+  },
   ssr: true,
 });
