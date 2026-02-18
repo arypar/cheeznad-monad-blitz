@@ -43,3 +43,6 @@ next-env.d.ts
 # backend
 /backend/dist/
 /backend/node_modules/
+
+# test private keys
+/test/accounts.json
