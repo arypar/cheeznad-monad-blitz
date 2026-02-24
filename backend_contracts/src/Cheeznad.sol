@@ -17,15 +17,20 @@ contract Cheeznad {
         mapping(address => bool) isDepositor;
         uint256 depositorCount;
     }
+
+    uint256 public constant BETTING_DURATION = 1 hours;
+    uint256 public constant ROUND_DURATION = 2 hours;
     
     mapping(Zone => ZoneInfo) public zones;
     address public oracle;
     uint256 public roundNumber;
+    uint256 public roundStartTime;
+    uint256 public lastDistributionTime;
     
     event Deposit(address indexed user, Zone indexed zone, uint256 amount);
-    event Distribution(Zone indexed winningZone, uint256 totalAmount, uint256 roundNumber);
+    event Distribution(Zone indexed winningZone, uint256 totalAmount, uint256 roundStartTime);
     event OracleUpdated(address indexed newOracle);
-    event RoundStarted(uint256 roundNumber);
+    event RoundStarted(uint256 roundStartTime);
     
     modifier onlyOracle() {
         require(msg.sender == oracle, "Only oracle can call this function");
@@ -35,11 +40,14 @@ contract Cheeznad {
     constructor() {
         oracle = msg.sender;
         roundNumber = 1;
-        emit RoundStarted(roundNumber);
+        roundStartTime = block.timestamp;
+        lastDistributionTime = block.timestamp;
+        emit RoundStarted(roundStartTime);
     }
     
     function deposit(Zone _zone) external payable {
         require(msg.value > 0, "Deposit must be greater than 0");
+        require(isBettingOpen(), "Betting is closed for this round");
         
         ZoneInfo storage zone = zones[_zone];
         
@@ -56,7 +64,9 @@ contract Cheeznad {
         emit Deposit(msg.sender, _zone, msg.value);
     }
     
-    function distribute(Zone _winningZone) external {
+    function distribute(Zone _winningZone) external onlyOracle {
+        require(canDistribute(), "Round not ready for distribution");
+
         uint256 totalFunds = address(this).balance;
         
         if (totalFunds > 0) {
@@ -98,20 +108,12 @@ contract Cheeznad {
         _resetAllZones();
         
         // Start new round
+        roundStartTime = block.timestamp;
+        lastDistributionTime = block.timestamp;
         roundNumber++;
         
-        emit Distribution(_winningZone, totalFunds, roundNumber);
-        emit RoundStarted(roundNumber);
-    }
-    
-    function resetRound() external {
-        // Reset all zones for next round
-        _resetAllZones();
-        
-        // Start new round
-        roundNumber++;
-        
-        emit RoundStarted(roundNumber);
+        emit Distribution(_winningZone, totalFunds, roundStartTime);
+        emit RoundStarted(roundStartTime);
     }
     
     function _resetAllZones() private {
@@ -152,8 +154,48 @@ contract Cheeznad {
         return zones[_zone].isDepositor[_user];
     }
     
-    function updateOracle(address _newOracle) external {
+    function updateOracle(address _newOracle) external onlyOracle {
         oracle = _newOracle;
         emit OracleUpdated(_newOracle);
+    }
+    
+    function canDistribute() public view returns (bool) {
+        return block.timestamp >= roundStartTime + ROUND_DURATION;
+    }
+    
+    function isBettingOpen() public view returns (bool) {
+        return block.timestamp <= roundStartTime + BETTING_DURATION;
+    }
+    
+    function getRoundTimeRemaining() external view returns (uint256) {
+        if (block.timestamp >= roundStartTime + ROUND_DURATION) {
+            return 0;
+        }
+        return (roundStartTime + ROUND_DURATION) - block.timestamp;
+    }
+    
+    function getBettingTimeRemaining() external view returns (uint256) {
+        if (block.timestamp >= roundStartTime + BETTING_DURATION) {
+            return 0;
+        }
+        return (roundStartTime + BETTING_DURATION) - block.timestamp;
+    }
+    
+    function getCurrentRoundPhase() external view returns (string memory) {
+        if (isBettingOpen()) {
+            return "BETTING";
+        } else if (block.timestamp < roundStartTime + ROUND_DURATION) {
+            return "RECORDING";
+        } else {
+            return "COMPLETE";
+        }
+    }
+    
+    function getRoundStartTime() external view returns (uint256) {
+        return roundStartTime;
+    }
+    
+    function getLastDistributionTime() external view returns (uint256) {
+        return lastDistributionTime;
     }
 }
