@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { motion, LayoutGroup } from "framer-motion";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
+import { useContractRound } from "@/hooks/useContractRound";
 import { useGameStore } from "@/store/useGameStore";
 import { ZONE_LIST } from "@/lib/zones";
 import CheesyNav from "@/components/CheesyNav";
@@ -15,6 +16,7 @@ import type { ZoneId } from "@/types";
 
 export default function Home() {
   useLiveFeed();
+  useContractRound();
 
   const zones = useGameStore((s) => s.zones);
 

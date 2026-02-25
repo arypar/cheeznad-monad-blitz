@@ -28,7 +28,7 @@ const monadTestnet = defineChain({
   testnet: true,
 });
 
-const cheeznadAbi = [
+export const cheeznadAbi = [
   {
     name: "distribute",
     type: "function",
@@ -43,22 +43,57 @@ const cheeznadAbi = [
     outputs: [],
   },
   {
-    name: "resetRound",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [],
-    outputs: [],
-  },
-  {
     name: "getZoneTotal",
     type: "function",
     stateMutability: "view",
     inputs: [{ name: "_zone", type: "uint8" }],
     outputs: [{ name: "", type: "uint256" }],
   },
+  {
+    name: "roundStartTime",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "roundNumber",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "isBettingOpen",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "canDistribute",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "ROUND_DURATION",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "BETTING_DURATION",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
 ] as const;
 
-function getClients() {
+export function getClients() {
   const key = config.oraclePrivateKey;
   if (!key) {
     throw new Error("[distributor] ORACLE_PRIVATE_KEY is not set");
@@ -83,54 +118,11 @@ function getClients() {
 export async function distributeWinnings(winner: ZoneId): Promise<void> {
   const zoneEnum = ZONE_TO_ENUM[winner];
   console.log(
-    `[distributor] distributing for winner: ${winner} (enum=${zoneEnum})`
+    `[distributor] calling distribute(${zoneEnum}) for winner: ${winner}`
   );
 
   const { publicClient, walletClient } = getClients();
   const contractAddress = config.contractAddress;
-
-  async function hasDeposits(): Promise<boolean> {
-    for (let i = 0; i < 5; i++) {
-      const total = await publicClient.readContract({
-        address: contractAddress,
-        abi: cheeznadAbi,
-        functionName: "getZoneTotal",
-        args: [i],
-      });
-      if ((total as bigint) > BigInt(0)) return true;
-    }
-    return false;
-  }
-
-  const deposits = await hasDeposits();
-
-  if (!deposits) {
-    console.log(
-      `[distributor] no deposits in any zone — calling resetRound() to start fresh`
-    );
-
-    const txHash = await walletClient.writeContract({
-      address: contractAddress,
-      abi: cheeznadAbi,
-      functionName: "resetRound",
-    });
-
-    console.log(`[distributor] resetRound tx sent: ${txHash}`);
-
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash: txHash,
-    });
-
-    console.log(
-      `[distributor] resetRound confirmed in block ${receipt.blockNumber} (status: ${receipt.status})`
-    );
-
-    return;
-  }
-
-  console.log(
-    `[distributor] calling distribute(${zoneEnum}) for ${winner}`
-  );
 
   const txHash = await walletClient.writeContract({
     address: contractAddress,

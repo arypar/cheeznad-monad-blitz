@@ -122,6 +122,12 @@ interface GameStore {
     winnerZone: ZoneId;
     endedAt: string;
   }[]) => void;
+  syncContractTime: (data: {
+    roundEndTime: number;
+    bettingEndTime: number;
+    isBettingOpen: boolean;
+    roundId: number;
+  }) => void;
 }
 
 function defaultMultipliers(): Record<ZoneId, number> {
@@ -436,5 +442,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       timestamp: new Date(w.endedAt).getTime(),
     }));
     set({ roundResults: results });
+  },
+
+  syncContractTime: (data) => {
+    const state = get();
+    // Only update timing fields — don't reset zones/history/scores
+    const updates: Partial<GameStore> = {
+      roundEndTime: data.roundEndTime,
+      bettingEndTime: data.bettingEndTime,
+      isBettingOpen: data.isBettingOpen,
+    };
+    // If contract reports a new round that we haven't seen via WebSocket yet,
+    // update roundId so the timer displays correctly
+    if (data.roundId > 0 && data.roundId !== state.roundId) {
+      updates.roundId = data.roundId;
+    }
+    set(updates);
   },
 }));

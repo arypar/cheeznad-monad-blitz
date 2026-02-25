@@ -1,12 +1,13 @@
 import { config } from "./config.js";
 import { getSupabase } from "./supabase.js";
-import { distributeWinnings } from "./distributor.js";
+import { distributeWinnings, getClients, cheeznadAbi } from "./distributor.js";
 import type { ZoneId, ZoneScore } from "./types.js";
 
 const ALL_ZONES: ZoneId[] = ["pepperoni", "mushroom", "pineapple", "olive", "anchovy"];
 const LOOKBACK_ROUNDS = 10;
 const MIN_MULTIPLIER = 0.1;
 const MAX_MULTIPLIER = 10.0;
+const POLL_INTERVAL_MS = 7_000;
 
 interface RoundState {
   roundNumber: number;
@@ -17,8 +18,9 @@ interface RoundState {
   startedAt: number;
   endsAt: number;
   bettingEndsAt: number;
-  timer: ReturnType<typeof setTimeout> | null;
-  bettingTimer: ReturnType<typeof setTimeout> | null;
+  contractBettingOpen: boolean;
+  contractCanDistribute: boolean;
+  distributing: boolean;
 }
 
 type RoundStartCallback = (data: {
@@ -47,9 +49,14 @@ let state: RoundState = {
   startedAt: 0,
   endsAt: 0,
   bettingEndsAt: 0,
-  timer: null,
-  bettingTimer: null,
+  contractBettingOpen: true,
+  contractCanDistribute: false,
+  distributing: false,
 };
+
+let pollInterval: ReturnType<typeof setInterval> | null = null;
+let contractRoundDurationMs = 0;
+let contractBettingDurationMs = 0;
 
 let onRoundStart: RoundStartCallback | null = null;
 let onRoundEnd: RoundEndCallback | null = null;
@@ -155,38 +162,68 @@ async function calculateMultipliers(): Promise<Record<ZoneId, number>> {
   return multipliers;
 }
 
-async function getNextRoundNumber(): Promise<number> {
-  const supabase = getSupabase();
-  const { data } = await supabase
-    .from("rounds")
-    .select("round_number")
-    .order("round_number", { ascending: false })
-    .limit(1);
+async function readContractState() {
+  const { publicClient } = getClients();
+  const contractAddress = config.contractAddress;
 
-  if (data && data.length > 0) {
-    return data[0].round_number + 1;
-  }
-  return 1;
+  const [roundStartTime, roundNumber, bettingOpen, canDistribute, roundDuration, bettingDuration] =
+    await Promise.all([
+      publicClient.readContract({
+        address: contractAddress,
+        abi: cheeznadAbi,
+        functionName: "roundStartTime",
+      }),
+      publicClient.readContract({
+        address: contractAddress,
+        abi: cheeznadAbi,
+        functionName: "roundNumber",
+      }),
+      publicClient.readContract({
+        address: contractAddress,
+        abi: cheeznadAbi,
+        functionName: "isBettingOpen",
+      }),
+      publicClient.readContract({
+        address: contractAddress,
+        abi: cheeznadAbi,
+        functionName: "canDistribute",
+      }),
+      publicClient.readContract({
+        address: contractAddress,
+        abi: cheeznadAbi,
+        functionName: "ROUND_DURATION",
+      }),
+      publicClient.readContract({
+        address: contractAddress,
+        abi: cheeznadAbi,
+        functionName: "BETTING_DURATION",
+      }),
+    ]);
+
+  return {
+    roundStartTime: Number(roundStartTime as bigint),
+    roundNumber: Number(roundNumber as bigint),
+    bettingOpen: bettingOpen as boolean,
+    canDistribute: canDistribute as boolean,
+    roundDurationSecs: Number(roundDuration as bigint),
+    bettingDurationSecs: Number(bettingDuration as bigint),
+  };
 }
 
-export async function startRound(): Promise<void> {
+async function handleNewRound(contractRoundNumber: number, roundStartTimeSecs: number): Promise<void> {
   const multipliers = await calculateMultipliers();
-  const roundNumber = await getNextRoundNumber();
-  const now = Date.now();
 
-  const roundDurationMs = config.roundDurationMs;
-  const bettingDurationMs = config.bettingDurationMs;
-
-  const endsAt = now + roundDurationMs;
-  const bettingEndsAt = now + bettingDurationMs;
+  const startedAtMs = roundStartTimeSecs * 1000;
+  const endsAt = startedAtMs + contractRoundDurationMs;
+  const bettingEndsAt = startedAtMs + contractBettingDurationMs;
 
   const supabase = getSupabase();
 
   const { data: roundRow, error: roundError } = await supabase
     .from("rounds")
     .insert({
-      round_number: roundNumber,
-      started_at: new Date(now).toISOString(),
+      round_number: contractRoundNumber,
+      started_at: new Date(startedAtMs).toISOString(),
       total_classified_txns: 0,
     })
     .select("id")
@@ -215,56 +252,32 @@ export async function startRound(): Promise<void> {
   }
 
   state = {
-    roundNumber,
+    roundNumber: contractRoundNumber,
     roundId: roundRow.id,
     multipliers,
     txCounts: freshCounts(),
     volumes: freshCounts(),
-    startedAt: now,
+    startedAt: startedAtMs,
     endsAt,
     bettingEndsAt,
-    timer: setTimeout(() => endRound(), roundDurationMs),
-    bettingTimer: bettingDurationMs > 0
-      ? setTimeout(() => closeBetting(), bettingDurationMs)
-      : null,
+    contractBettingOpen: true,
+    contractCanDistribute: false,
+    distributing: false,
   };
 
   console.log(
-    `[rounds] round #${roundNumber} started | betting: ${Math.round(bettingDurationMs / 1000)}s | round: ${Math.round(roundDurationMs / 1000)}s | multipliers: ${ALL_ZONES.map((z) => `${z.slice(0, 3)}=${multipliers[z]}x`).join(" ")}`
+    `[rounds] round #${contractRoundNumber} started (contract) | betting: ${Math.round(contractBettingDurationMs / 1000)}s | round: ${Math.round(contractRoundDurationMs / 1000)}s | multipliers: ${ALL_ZONES.map((z) => `${z.slice(0, 3)}=${multipliers[z]}x`).join(" ")}`
   );
 
   onRoundStart?.({
-    roundNumber,
+    roundNumber: contractRoundNumber,
     multipliers,
     endsAt,
     bettingEndsAt,
   });
 }
 
-export function accumulateTx(zoneId: ZoneId, volume: number): void {
-  state.txCounts[zoneId]++;
-  state.volumes[zoneId] += volume;
-}
-
-function closeBetting(): void {
-  if (state.bettingTimer) {
-    clearTimeout(state.bettingTimer);
-    state.bettingTimer = null;
-  }
-  console.log(`[rounds] round #${state.roundNumber} betting closed`);
-  onBettingClosed?.({ roundNumber: state.roundNumber });
-}
-
 async function endRound(): Promise<void> {
-  if (state.timer) {
-    clearTimeout(state.timer);
-    state.timer = null;
-  }
-  if (state.bettingTimer) {
-    clearTimeout(state.bettingTimer);
-    state.bettingTimer = null;
-  }
-
   const scores: Record<ZoneId, ZoneScore> = {} as Record<ZoneId, ZoneScore>;
   let maxScore = -1;
   let winner: ZoneId = "pepperoni";
@@ -319,12 +332,84 @@ async function endRound(): Promise<void> {
     scores,
   });
 
-  distributeWinnings(winner)
-    .then(() => startRound())
-    .catch((err) => {
-      console.error("[distributor] failed:", err);
-      startRound();
-    });
+  state.distributing = true;
+
+  try {
+    await distributeWinnings(winner);
+  } catch (err) {
+    console.error("[distributor] failed:", err);
+  }
+  // After distribute() the contract increments roundNumber and sets new roundStartTime.
+  // The next poll cycle will detect the new round and call handleNewRound().
+}
+
+async function pollContract(): Promise<void> {
+  try {
+    const contract = await readContractState();
+
+    contractRoundDurationMs = contract.roundDurationSecs * 1000;
+    contractBettingDurationMs = contract.bettingDurationSecs * 1000;
+
+    const startedAtMs = contract.roundStartTime * 1000;
+    const endsAt = startedAtMs + contractRoundDurationMs;
+    const bettingEndsAt = startedAtMs + contractBettingDurationMs;
+
+    // Keep timestamps in sync with contract
+    state.endsAt = endsAt;
+    state.bettingEndsAt = bettingEndsAt;
+    state.startedAt = startedAtMs;
+
+    // Detect new round (contract roundNumber increased)
+    if (contract.roundNumber > state.roundNumber) {
+      if (state.distributing) {
+        // We triggered distribute — contract has moved to new round
+        state.distributing = false;
+      }
+      await handleNewRound(contract.roundNumber, contract.roundStartTime);
+      return;
+    }
+
+    // Detect betting closed transition
+    if (state.contractBettingOpen && !contract.bettingOpen) {
+      state.contractBettingOpen = false;
+      console.log(`[rounds] round #${state.roundNumber} betting closed (contract)`);
+      onBettingClosed?.({ roundNumber: state.roundNumber });
+    }
+
+    // Detect round complete — time to distribute
+    if (!state.contractCanDistribute && contract.canDistribute && !state.distributing) {
+      state.contractCanDistribute = true;
+      await endRound();
+    }
+  } catch (err) {
+    console.error("[rounds] contract poll error:", err);
+  }
+}
+
+export async function startRound(): Promise<void> {
+  // Initial read to get contract constants and current state
+  const contract = await readContractState();
+
+  contractRoundDurationMs = contract.roundDurationSecs * 1000;
+  contractBettingDurationMs = contract.bettingDurationSecs * 1000;
+
+  console.log(
+    `[rounds] contract durations — betting: ${contract.bettingDurationSecs}s | round: ${contract.roundDurationSecs}s`
+  );
+
+  if (contract.roundNumber > 0) {
+    await handleNewRound(contract.roundNumber, contract.roundStartTime);
+  }
+
+  // Start the polling loop
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(() => pollContract(), POLL_INTERVAL_MS);
+  console.log(`[rounds] contract polling started (every ${POLL_INTERVAL_MS / 1000}s)`);
+}
+
+export function accumulateTx(zoneId: ZoneId, volume: number): void {
+  state.txCounts[zoneId]++;
+  state.volumes[zoneId] += volume;
 }
 
 export async function getPastWinners(limit = 10): Promise<
@@ -348,12 +433,8 @@ export async function getPastWinners(limit = 10): Promise<
 }
 
 export function stopRounds(): void {
-  if (state.timer) {
-    clearTimeout(state.timer);
-    state.timer = null;
-  }
-  if (state.bettingTimer) {
-    clearTimeout(state.bettingTimer);
-    state.bettingTimer = null;
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
   }
 }

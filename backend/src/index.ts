@@ -80,7 +80,7 @@ async function main() {
   console.log(`  ${DIM}RPC${RESET}       ${config.monadRpcWs}`);
   console.log(`  ${DIM}WS Port${RESET}   ${config.wsPort}`);
   console.log(`  ${DIM}Registry${RESET}  ${getRegistrySize()} addresses across 5 zones`);
-  console.log(`  ${DIM}Round${RESET}     ${config.roundDurationMs / 1000}s per round`);
+  console.log(`  ${DIM}Round${RESET}     durations from contract`);
   console.log(`  ${DIM}Zones${RESET}     ${ALL_ZONES.map(z => ZONE_COLORS[z] + ZONE_LABELS[z] + RESET).join(DIM + " · " + RESET)}`);
   console.log("");
   console.log(SEP);

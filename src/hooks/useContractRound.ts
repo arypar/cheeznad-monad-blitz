@@ -1,57 +1,69 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect } from "react";
 import { useReadContracts } from "wagmi";
 import { CHEEZNAD_ADDRESS, cheeznadAbi } from "@/lib/cheeznadAbi";
+import { useGameStore } from "@/store/useGameStore";
 
 export function useContractRound() {
-  const { data, isLoading } = useReadContracts({
+  const syncContractTime = useGameStore((s) => s.syncContractTime);
+
+  const { data } = useReadContracts({
     contracts: [
       {
         address: CHEEZNAD_ADDRESS,
         abi: cheeznadAbi,
-        functionName: "getRoundTimeRemaining" as const,
+        functionName: "roundStartTime" as const,
       },
       {
         address: CHEEZNAD_ADDRESS,
         abi: cheeznadAbi,
-        functionName: "getBettingTimeRemaining" as const,
-      },
-      {
-        address: CHEEZNAD_ADDRESS,
-        abi: cheeznadAbi,
-        functionName: "getCurrentRoundPhase" as const,
+        functionName: "roundNumber" as const,
       },
       {
         address: CHEEZNAD_ADDRESS,
         abi: cheeznadAbi,
         functionName: "isBettingOpen" as const,
       },
+      {
+        address: CHEEZNAD_ADDRESS,
+        abi: cheeznadAbi,
+        functionName: "ROUND_DURATION" as const,
+      },
+      {
+        address: CHEEZNAD_ADDRESS,
+        abi: cheeznadAbi,
+        functionName: "BETTING_DURATION" as const,
+      },
     ],
-    query: { refetchInterval: 15_000 },
+    query: { refetchInterval: 7_000 },
   });
 
-  return useMemo(() => {
-    const roundTimeLeft =
-      data?.[0]?.status === "success"
-        ? Number(data[0].result as bigint)
-        : 0;
+  useEffect(() => {
+    if (!data) return;
 
-    const bettingTimeLeft =
-      data?.[1]?.status === "success"
-        ? Number(data[1].result as bigint)
-        : 0;
+    const roundStartTimeSecs =
+      data[0]?.status === "success" ? Number(data[0].result as bigint) : 0;
+    const roundNumber =
+      data[1]?.status === "success" ? Number(data[1].result as bigint) : 0;
+    const bettingOpen =
+      data[2]?.status === "success" ? (data[2].result as boolean) : false;
+    const roundDurationSecs =
+      data[3]?.status === "success" ? Number(data[3].result as bigint) : 0;
+    const bettingDurationSecs =
+      data[4]?.status === "success" ? Number(data[4].result as bigint) : 0;
 
-    const phase =
-      data?.[2]?.status === "success"
-        ? (data[2].result as string)
-        : "BETTING";
+    if (roundStartTimeSecs === 0 || roundNumber === 0) return;
 
-    const isBettingOpen =
-      data?.[3]?.status === "success"
-        ? (data[3].result as boolean)
-        : false;
+    const startMs = roundStartTimeSecs * 1000;
+    const roundEndTime = startMs + roundDurationSecs * 1000;
+    const bettingEndTime = startMs + bettingDurationSecs * 1000;
 
-    return { roundTimeLeft, bettingTimeLeft, phase, isBettingOpen, isLoading };
-  }, [data, isLoading]);
+    syncContractTime({
+      roundEndTime,
+      bettingEndTime,
+      isBettingOpen: bettingOpen,
+      roundId: roundNumber,
+    });
+  }, [data, syncContractTime]);
 }

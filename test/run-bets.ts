@@ -17,7 +17,7 @@ import * as path from "path";
 const BACKEND_URL =
   "https://monad-blitz-denver-production.up.railway.app";
 const CONTRACT_ADDRESS =
-  "0x570afd8CE31C90728B0e8926C6922dBc8DefFF70" as const;
+  "0xf1bEa445850626BD412E275ab4D98E60eDBF9755" as const;
 
 const FUNDER_PRIVATE_KEY =
   "0xc3760082008a49570c2f4270dcf0fb0f648bf8606edc3116245109bbcd9ab58a" as Hex;
