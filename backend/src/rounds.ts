@@ -210,15 +210,22 @@ async function readContractState() {
   };
 }
 
-async function handleNewRound(contractRoundNumber: number, roundStartTimeSecs: number): Promise<void> {
+async function handleNewRound(
+  contractRoundNumber: number,
+  roundStartTimeSecs: number,
+  contractState?: { bettingOpen: boolean; canDistribute: boolean },
+): Promise<void> {
   const multipliers = await calculateMultipliers();
 
   const startedAtMs = roundStartTimeSecs * 1000;
   const endsAt = startedAtMs + contractRoundDurationMs;
   const bettingEndsAt = startedAtMs + contractBettingDurationMs;
 
+  let roundId: string | null = null;
+
   const supabase = getSupabase();
 
+  // Try insert; if it already exists, look it up instead
   const { data: roundRow, error: roundError } = await supabase
     .from("rounds")
     .insert({
@@ -230,43 +237,53 @@ async function handleNewRound(contractRoundNumber: number, roundStartTimeSecs: n
     .single();
 
   if (roundError || !roundRow) {
-    console.error("[rounds] failed to insert round:", roundError);
-    return;
+    console.warn("[rounds] insert failed (likely duplicate), looking up existing:", roundError?.message);
+    const { data: existing } = await supabase
+      .from("rounds")
+      .select("id")
+      .eq("round_number", contractRoundNumber)
+      .single();
+    roundId = existing?.id ?? null;
+  } else {
+    roundId = roundRow.id;
+
+    const zoneRows = ALL_ZONES.map((z) => ({
+      round_id: roundRow.id,
+      zone_id: z,
+      tx_count: 0,
+      volume: 0,
+      multiplier: multipliers[z],
+      weighted_score: 0,
+    }));
+
+    const { error: statsError } = await supabase
+      .from("round_zone_stats")
+      .insert(zoneRows);
+
+    if (statsError) {
+      console.error("[rounds] failed to insert zone stats:", statsError);
+    }
   }
 
-  const zoneRows = ALL_ZONES.map((z) => ({
-    round_id: roundRow.id,
-    zone_id: z,
-    tx_count: 0,
-    volume: 0,
-    multiplier: multipliers[z],
-    weighted_score: 0,
-  }));
-
-  const { error: statsError } = await supabase
-    .from("round_zone_stats")
-    .insert(zoneRows);
-
-  if (statsError) {
-    console.error("[rounds] failed to insert zone stats:", statsError);
-  }
+  const bettingOpen = contractState?.bettingOpen ?? (Date.now() < bettingEndsAt);
+  const canDistribute = contractState?.canDistribute ?? false;
 
   state = {
     roundNumber: contractRoundNumber,
-    roundId: roundRow.id,
+    roundId,
     multipliers,
     txCounts: freshCounts(),
     volumes: freshCounts(),
     startedAt: startedAtMs,
     endsAt,
     bettingEndsAt,
-    contractBettingOpen: true,
-    contractCanDistribute: false,
+    contractBettingOpen: bettingOpen,
+    contractCanDistribute: canDistribute,
     distributing: false,
   };
 
   console.log(
-    `[rounds] round #${contractRoundNumber} started (contract) | betting: ${Math.round(contractBettingDurationMs / 1000)}s | round: ${Math.round(contractRoundDurationMs / 1000)}s | multipliers: ${ALL_ZONES.map((z) => `${z.slice(0, 3)}=${multipliers[z]}x`).join(" ")}`
+    `[rounds] round #${contractRoundNumber} started (contract) | betting: ${Math.round(contractBettingDurationMs / 1000)}s | round: ${Math.round(contractRoundDurationMs / 1000)}s | bettingOpen: ${bettingOpen} | canDistribute: ${canDistribute} | multipliers: ${ALL_ZONES.map((z) => `${z.slice(0, 3)}=${multipliers[z]}x`).join(" ")}`
   );
 
   onRoundStart?.({
@@ -336,11 +353,13 @@ async function endRound(): Promise<void> {
 
   try {
     await distributeWinnings(winner);
+    console.log("[rounds] distribute succeeded — waiting for contract to advance round");
   } catch (err) {
     console.error("[distributor] failed:", err);
+    // Reset so the next poll cycle can retry
+    state.distributing = false;
+    state.contractCanDistribute = false;
   }
-  // After distribute() the contract increments roundNumber and sets new roundStartTime.
-  // The next poll cycle will detect the new round and call handleNewRound().
 }
 
 async function pollContract(): Promise<void> {
@@ -362,10 +381,12 @@ async function pollContract(): Promise<void> {
     // Detect new round (contract roundNumber increased)
     if (contract.roundNumber > state.roundNumber) {
       if (state.distributing) {
-        // We triggered distribute — contract has moved to new round
         state.distributing = false;
       }
-      await handleNewRound(contract.roundNumber, contract.roundStartTime);
+      await handleNewRound(contract.roundNumber, contract.roundStartTime, {
+        bettingOpen: contract.bettingOpen,
+        canDistribute: contract.canDistribute,
+      });
       return;
     }
 
@@ -396,9 +417,21 @@ export async function startRound(): Promise<void> {
   console.log(
     `[rounds] contract durations — betting: ${contract.bettingDurationSecs}s | round: ${contract.roundDurationSecs}s`
   );
+  console.log(
+    `[rounds] contract state — round: ${contract.roundNumber} | bettingOpen: ${contract.bettingOpen} | canDistribute: ${contract.canDistribute} | roundStartTime: ${contract.roundStartTime}`
+  );
 
   if (contract.roundNumber > 0) {
-    await handleNewRound(contract.roundNumber, contract.roundStartTime);
+    await handleNewRound(contract.roundNumber, contract.roundStartTime, {
+      bettingOpen: contract.bettingOpen,
+      canDistribute: contract.canDistribute,
+    });
+
+    // If round is already complete at boot, distribute immediately
+    if (contract.canDistribute) {
+      console.log("[rounds] round already complete at boot — triggering distribution");
+      await endRound();
+    }
   }
 
   // Start the polling loop
